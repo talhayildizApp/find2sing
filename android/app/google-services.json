@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "96394344519",
+    "project_id": "sarkiapp-be158",
+    "storage_bucket": "sarkiapp-be158.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:96394344519:android:321c5add43ae660c7bd962",
+        "android_client_info": {
+          "package_name": "com.example.sarkiapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDOBw2V1p-5lXUoeYi63bxRISeHFiJMrY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
