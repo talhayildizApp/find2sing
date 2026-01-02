@@ -1,27 +1,50 @@
 name: sarkiapp
-description: Turkish Song Association MVP
-publish_to: "none"
+description: Find2Sing - Şarkı tahmin oyunu
+
+publish_to: 'none'
+
+version: 1.0.0+1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
-  cloud_firestore: ^6.1.0
-  firebase_auth: ^6.1.2
-  firebase_core: ^4.2.1
   flutter:
     sdk: flutter
-  provider: ^6.0.5
-  share_plus: ^10.0.0
+
+  # Firebase Core
+  firebase_core: ^3.8.1
+  
+  # Firebase Auth
+  firebase_auth: ^5.3.4
+  
+  # Firestore Database
+  cloud_firestore: ^5.6.0
+  
+  # Google Sign-In
+  google_sign_in: ^6.2.2
+  
+  # Sign in with Apple (iOS)
+  sign_in_with_apple: ^6.1.4
+  
+  # State Management
+  provider: ^6.1.2
+  
+  # Social Share
+  share_plus: ^10.1.4
+  
+  # Material Icons
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true
+
   assets:
-      - assets/images/
-      - assets/words/word_list_tr.json
+    - assets/images/
+    - assets/words/
 
