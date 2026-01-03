@@ -5,7 +5,6 @@ import '../../models/challenge_model.dart';
 import '../../models/user_model.dart';
 import '../../services/challenge_service.dart';
 import '../../services/access_control_service.dart';
-import '../../services/pricing_service.dart';
 import 'challenge_detail_screen.dart';
 
 class CategoryDetailScreen extends StatefulWidget {
@@ -410,7 +409,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 child: Center(
                   child: hasAccess
                       ? Text(
-                          challenge.type == 'artist' ? '🎤' : '🎵',
+                          challenge.type == ChallengeType.artist ? '🎤' : '🎵',
                           style: const TextStyle(fontSize: 20),
                         )
                       : const Icon(
@@ -457,7 +456,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         ),
                         const SizedBox(width: 6),
                         _buildMiniChip(
-                          _getDifficultyText(challenge.difficulty),
+                          challenge.difficultyLabel,
                           hasAccess,
                         ),
                       ],

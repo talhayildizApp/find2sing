@@ -560,7 +560,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               child: Center(
                 child: hasAccess
                     ? Text(
-                        challenge.type == 'artist' ? '🎤' : '🎵',
+                        challenge.type == ChallengeType.artist ? '🎤' : '🎵',
                         style: const TextStyle(fontSize: 24),
                       )
                     : const Icon(
@@ -607,7 +607,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                       ),
                       const SizedBox(width: 8),
                       _buildChip(
-                        _getDifficultyText(challenge.difficulty),
+                        challenge.difficultyLabel,
                         hasAccess,
                       ),
                       if (challenge.isFree) ...[

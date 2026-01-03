@@ -159,7 +159,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
         children: [
           // Emoji / İkon
           Text(
-            widget.challenge.type == 'artist' ? '🎤' : '🎵',
+            widget.challenge.type == ChallengeType.artist ? '🎤' : '🎵',
             style: const TextStyle(fontSize: 48),
           ),
           const SizedBox(height: 12),
@@ -245,7 +245,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
           child: _buildStatCard(
             icon: Icons.speed,
             label: 'Zorluk',
-            value: _getDifficultyText(widget.challenge.difficulty),
+            value: widget.challenge.difficultyLabel,
           ),
         ),
         const SizedBox(width: 12),

@@ -8,50 +8,35 @@ class AuthService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Koleksiyon referansı
   CollectionReference<Map<String, dynamic>> get _usersCollection =>
       _db.collection('users');
 
-  // Mevcut kullanıcı stream'i
   Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  // Mevcut kullanıcı
   User? get currentUser => _auth.currentUser;
-
-  // Mevcut kullanıcı ID
   String? get currentUserId => _auth.currentUser?.uid;
 
-  /// Email/Şifre ile kayıt ol
   Future<AuthResult> registerWithEmail({
     required String email,
     required String password,
     String? displayName,
   }) async {
     try {
-      // Firebase Auth'da kullanıcı oluştur
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-
       if (credential.user == null) {
         return AuthResult.failure('Kullanıcı oluşturulamadı');
       }
-
-      // Kullanıcı adını güncelle
       if (displayName != null && displayName.isNotEmpty) {
         await credential.user!.updateDisplayName(displayName);
       }
-
-      // Firestore'da kullanıcı dokümanı oluştur
       final userModel = UserModel.newUser(
         uid: credential.user!.uid,
         email: email,
         displayName: displayName,
       );
-
       await _usersCollection.doc(credential.user!.uid).set(userModel.toFirestore());
-
       return AuthResult.success(userModel);
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
@@ -60,7 +45,6 @@ class AuthService {
     }
   }
 
-  /// Email/Şifre ile giriş yap
   Future<AuthResult> signInWithEmail({
     required String email,
     required String password,
@@ -70,17 +54,11 @@ class AuthService {
         email: email,
         password: password,
       );
-
       if (credential.user == null) {
         return AuthResult.failure('Giriş başarısız');
       }
-
-      // Firestore'dan kullanıcı bilgilerini al ve güncelle
       final userModel = await _getOrCreateUserDocument(credential.user!);
-
-      // Son giriş zamanını güncelle
       await _updateLastLogin(credential.user!.uid);
-
       return AuthResult.success(userModel);
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
@@ -89,50 +67,31 @@ class AuthService {
     }
   }
 
-  /// Google ile giriş yap
   Future<AuthResult> signInWithGoogle() async {
     try {
-      // Önceki oturumu temizle (app dışına çıkma bug fix)
       await _googleSignIn.signOut();
-      
-      // Google Sign-In akışını başlat
       final googleUser = await _googleSignIn.signIn();
-
       if (googleUser == null) {
         return AuthResult.failure('Google girişi iptal edildi');
       }
-
-      // Google kimlik bilgilerini al
       final googleAuth = await googleUser.authentication;
-
       if (googleAuth.accessToken == null || googleAuth.idToken == null) {
         return AuthResult.failure('Google kimlik bilgileri alınamadı');
       }
-
-      // Firebase credential oluştur
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
-
-      // Firebase'e giriş yap
       final userCredential = await _auth.signInWithCredential(credential);
-
       if (userCredential.user == null) {
         return AuthResult.failure('Google ile giriş başarısız');
       }
-
-      // Firestore'da kullanıcı dokümanını al veya oluştur
       final userModel = await _getOrCreateUserDocument(userCredential.user!);
-
-      // Son giriş zamanını güncelle
       await _updateLastLogin(userCredential.user!.uid);
-
       return AuthResult.success(userModel);
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
     } catch (e) {
-      // Daha kullanıcı dostu hata mesajı
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('network') || errorStr.contains('internet')) {
         return AuthResult.failure('İnternet bağlantınızı kontrol edin');
@@ -144,25 +103,19 @@ class AuthService {
     }
   }
 
-  /// Apple ile giriş yap (iOS için)
   Future<AuthResult> signInWithApple() async {
     try {
       final appleProvider = AppleAuthProvider();
       appleProvider.addScope('email');
       appleProvider.addScope('name');
-
       final userCredential = await _auth.signInWithProvider(appleProvider);
-
       if (userCredential.user == null) {
         return AuthResult.failure('Apple ile giriş başarısız');
       }
-
       final userModel = await _getOrCreateUserDocument(userCredential.user!);
       await _updateLastLogin(userCredential.user!.uid);
-
       return AuthResult.success(userModel);
     } on FirebaseAuthException catch (e) {
-      // Apple Sign-In spesifik hata mesajları
       switch (e.code) {
         case 'canceled':
         case 'user-canceled':
@@ -177,7 +130,6 @@ class AuthService {
           return AuthResult.failure(_getAuthErrorMessage(e.code));
       }
     } catch (e) {
-      // Daha kullanıcı dostu hata mesajı
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('cancel')) {
         return AuthResult.failure('Apple girişi iptal edildi');
@@ -185,22 +137,15 @@ class AuthService {
       if (errorStr.contains('network') || errorStr.contains('internet')) {
         return AuthResult.failure('İnternet bağlantınızı kontrol edin');
       }
-      if (errorStr.contains('unknown')) {
-        return AuthResult.failure(
-          'Apple ile giriş yapılamadı. Ayarlar > Apple Kimliği > Şifre ve Güvenlik bölümünden kontrol edin.',
-        );
-      }
       return AuthResult.failure('Apple ile giriş yapılamadı. Tekrar deneyin.');
     }
   }
 
-  /// Çıkış yap
   Future<void> signOut() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
   }
 
-  /// Şifre sıfırlama emaili gönder
   Future<AuthResult> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -212,11 +157,9 @@ class AuthService {
     }
   }
 
-  /// Mevcut kullanıcının Firestore verilerini al
   Future<UserModel?> getCurrentUserModel() async {
     final user = currentUser;
     if (user == null) return null;
-
     try {
       final doc = await _usersCollection.doc(user.uid).get();
       if (doc.exists) {
@@ -228,7 +171,6 @@ class AuthService {
     }
   }
 
-  /// Kullanıcı verilerini stream olarak dinle
   Stream<UserModel?> userModelStream(String uid) {
     return _usersCollection.doc(uid).snapshots().map((doc) {
       if (doc.exists) {
@@ -238,34 +180,28 @@ class AuthService {
     });
   }
 
-  /// Kullanıcı profilini güncelle
   Future<bool> updateUserProfile({
     String? displayName,
     String? photoUrl,
-    String? favoriteArtist,
+    String? preferredLanguage,
   }) async {
     final user = currentUser;
     if (user == null) return false;
-
     try {
       final updates = <String, dynamic>{
         'updatedAt': FieldValue.serverTimestamp(),
       };
-
       if (displayName != null) {
         updates['displayName'] = displayName;
         await user.updateDisplayName(displayName);
       }
-
       if (photoUrl != null) {
         updates['photoUrl'] = photoUrl;
         await user.updatePhotoURL(photoUrl);
       }
-
-      if (favoriteArtist != null) {
-        updates['favoriteArtist'] = favoriteArtist;
+      if (preferredLanguage != null) {
+        updates['preferredLanguage'] = preferredLanguage;
       }
-
       await _usersCollection.doc(user.uid).update(updates);
       return true;
     } catch (e) {
@@ -273,34 +209,78 @@ class AuthService {
     }
   }
 
-  /// Firestore'dan kullanıcı dokümanını al veya oluştur
+  Future<void> updateGameStats({
+    required int songsFound,
+    required int timePlayed,
+  }) async {
+    final user = currentUser;
+    if (user == null) return;
+    try {
+      await _usersCollection.doc(user.uid).update({
+        'totalSongsFound': FieldValue.increment(songsFound),
+        'totalGamesPlayed': FieldValue.increment(1),
+        'totalTimePlayed': FieldValue.increment(timePlayed),
+      });
+    } catch (e) {}
+  }
+
+  Future<bool> addFreeWordChanges(int count) async {
+    final user = currentUser;
+    if (user == null) return false;
+    try {
+      final doc = await _usersCollection.doc(user.uid).get();
+      if (!doc.exists) return false;
+      final currentCredits = doc.data()?['wordChangeCredits'] ?? 0;
+      final newCredits = (currentCredits + count).clamp(0, 5);
+      await _usersCollection.doc(user.uid).update({
+        'wordChangeCredits': newCredits,
+        'lastAdWatched': FieldValue.serverTimestamp(),
+        'totalAdsWatched': FieldValue.increment(1),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> useFreeWordChange() async {
+    final user = currentUser;
+    if (user == null) return false;
+    try {
+      final doc = await _usersCollection.doc(user.uid).get();
+      if (!doc.exists) return false;
+      final currentCredits = doc.data()?['wordChangeCredits'] ?? 0;
+      if (currentCredits <= 0) return false;
+      await _usersCollection.doc(user.uid).update({
+        'wordChangeCredits': FieldValue.increment(-1),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<UserModel> _getOrCreateUserDocument(User firebaseUser) async {
     final docRef = _usersCollection.doc(firebaseUser.uid);
     final doc = await docRef.get();
-
     if (doc.exists) {
       return UserModel.fromFirestore(doc);
     }
-
-    // Yeni kullanıcı dokümanı oluştur
     final userModel = UserModel.newUser(
       uid: firebaseUser.uid,
       email: firebaseUser.email ?? '',
       displayName: firebaseUser.displayName,
     );
-
     await docRef.set(userModel.toFirestore());
     return userModel;
   }
 
-  /// Son giriş zamanını güncelle
   Future<void> _updateLastLogin(String uid) async {
     await _usersCollection.doc(uid).update({
       'lastLoginAt': FieldValue.serverTimestamp(),
     });
   }
 
-  /// Firebase Auth hata mesajlarını Türkçeleştir
   String _getAuthErrorMessage(String code) {
     switch (code) {
       case 'email-already-in-use':
@@ -331,7 +311,6 @@ class AuthService {
   }
 }
 
-/// Auth işlem sonucu
 class AuthResult {
   final bool isSuccess;
   final UserModel? user;

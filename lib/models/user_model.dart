@@ -1,11 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Kullanıcı seviyeleri
 enum UserTier {
-  guest,      // Misafir - kayıt olmamış
-  free,       // Ücretsiz üye
-  purchased,  // Satın alma yapmış üye (tek seferlik)
-  premium,    // Premium abone (aylık)
+  guest,
+  free,
+  purchased,
+  premium,
 }
 
 class UserModel {
@@ -15,34 +14,20 @@ class UserModel {
   final String? photoUrl;
   final DateTime createdAt;
   final DateTime lastLoginAt;
-  
-  // Kullanıcı seviyesi
   final UserTier tier;
-  
-  // Oyun istatistikleri
   final int totalSongsFound;
   final int totalGamesPlayed;
-  final int totalTimePlayed; // saniye cinsinden
-  
-  // Kelime değiştirme hakları
-  final int wordChangeCredits; // Mevcut hak (max 5)
+  final int totalTimePlayed;
+  final int wordChangeCredits;
   static const int maxWordChangeCredits = 5;
-  
-  // Premium abonelik
   final bool isPremium;
   final DateTime? premiumExpiresAt;
-  final String? premiumSubscriptionId; // Store subscription ID
-  
-  // Satın alımlar (tek seferlik)
-  final List<String> purchasedChallenges; // challenge ID'leri
-  final List<String> purchasedCategories; // kategori ID'leri
-  
-  // Reklam takibi
+  final String? premiumSubscriptionId;
+  final List<String> purchasedChallenges;
+  final List<String> purchasedCategories;
   final DateTime? lastAdWatched;
   final int totalAdsWatched;
-  
-  // Tercihler
-  final String preferredLanguage; // 'tr' veya 'en'
+  final String preferredLanguage;
 
   UserModel({
     required this.uid,
@@ -55,7 +40,7 @@ class UserModel {
     this.totalSongsFound = 0,
     this.totalGamesPlayed = 0,
     this.totalTimePlayed = 0,
-    this.wordChangeCredits = 3, // Başlangıçta 3 hak
+    this.wordChangeCredits = 3,
     this.isPremium = false,
     this.premiumExpiresAt,
     this.premiumSubscriptionId,
@@ -66,10 +51,8 @@ class UserModel {
     this.preferredLanguage = 'tr',
   });
 
-  /// Firestore'dan UserModel oluştur
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
     return UserModel(
       uid: doc.id,
       email: data['email'] ?? '',
@@ -96,7 +79,6 @@ class UserModel {
     );
   }
 
-  /// Firestore'a kaydetmek için Map'e çevir
   Map<String, dynamic> toFirestore() {
     return {
       'email': email,
@@ -110,21 +92,16 @@ class UserModel {
       'totalTimePlayed': totalTimePlayed,
       'wordChangeCredits': wordChangeCredits,
       'isPremium': isPremium,
-      'premiumExpiresAt': premiumExpiresAt != null 
-          ? Timestamp.fromDate(premiumExpiresAt!) 
-          : null,
+      'premiumExpiresAt': premiumExpiresAt != null ? Timestamp.fromDate(premiumExpiresAt!) : null,
       'premiumSubscriptionId': premiumSubscriptionId,
       'purchasedChallenges': purchasedChallenges,
       'purchasedCategories': purchasedCategories,
-      'lastAdWatched': lastAdWatched != null 
-          ? Timestamp.fromDate(lastAdWatched!) 
-          : null,
+      'lastAdWatched': lastAdWatched != null ? Timestamp.fromDate(lastAdWatched!) : null,
       'totalAdsWatched': totalAdsWatched,
       'preferredLanguage': preferredLanguage,
     };
   }
 
-  /// Yeni kullanıcı oluştur
   factory UserModel.newUser({
     required String uid,
     required String email,
@@ -141,7 +118,6 @@ class UserModel {
     );
   }
 
-  /// Misafir kullanıcı oluştur
   factory UserModel.guest() {
     return UserModel(
       uid: 'guest',
@@ -154,7 +130,6 @@ class UserModel {
     );
   }
 
-  /// Kopyala ve güncelle
   UserModel copyWith({
     String? displayName,
     String? photoUrl,
@@ -196,16 +171,12 @@ class UserModel {
     );
   }
 
-  // ============ HESAPLAMALAR ============
-
-  /// Aktif premium mi? (süre dolmamış)
   bool get isActivePremium {
     if (!isPremium) return false;
-    if (premiumExpiresAt == null) return true; // süresiz (test için)
+    if (premiumExpiresAt == null) return true;
     return premiumExpiresAt!.isAfter(DateTime.now());
   }
 
-  /// Gerçek kullanıcı seviyesini hesapla
   UserTier get effectiveTier {
     if (isActivePremium) return UserTier.premium;
     if (purchasedChallenges.isNotEmpty || purchasedCategories.isNotEmpty) {
@@ -215,7 +186,6 @@ class UserModel {
     return tier;
   }
 
-  /// Reklam izleyince kazanılacak hak sayısı
   int get adRewardCredits {
     switch (effectiveTier) {
       case UserTier.guest:
@@ -225,11 +195,10 @@ class UserModel {
       case UserTier.purchased:
         return 3;
       case UserTier.premium:
-        return 0; // Premium'un izlemesine gerek yok
+        return 0;
     }
   }
 
-  /// Oyun sonunda reklam gösterilmeli mi?
   bool get shouldShowEndGameAd {
     switch (effectiveTier) {
       case UserTier.guest:
@@ -241,38 +210,35 @@ class UserModel {
     }
   }
 
-  /// Mevcut kelime değiştirme hakkı (Premium için her zaman 5)
   int get effectiveWordChangeCredits {
     if (isActivePremium) return maxWordChangeCredits;
     return wordChangeCredits.clamp(0, maxWordChangeCredits);
   }
 
-  /// Hak eklenebilir mi? (max 5)
   bool get canAddCredits {
-    if (isActivePremium) return false; // Premium zaten full
+    if (isActivePremium) return false;
     return wordChangeCredits < maxWordChangeCredits;
   }
 
-  /// Challenge'a erişim var mı?
   bool hasChallengeAccess(String challengeId) {
     if (isActivePremium) return true;
     return purchasedChallenges.contains(challengeId);
   }
 
-  /// Kategoriye erişim var mı?
   bool hasCategoryAccess(String categoryId) {
     if (isActivePremium) return true;
     return purchasedCategories.contains(categoryId);
   }
 
-  /// Challenge modunu görebilir mi? (listele)
   bool get canViewChallenges {
     return effectiveTier != UserTier.guest;
   }
 
-  /// Misafir mi?
   bool get isGuest => uid == 'guest' || tier == UserTier.guest;
-
-  /// Kayıtlı kullanıcı mı?
   bool get isRegistered => !isGuest && email.isNotEmpty;
+
+  // Profil ekranı için getter'lar
+  int get highScore => totalSongsFound;
+  int get gamesPlayed => totalGamesPlayed;
+  int get correctGuesses => totalSongsFound;
 }
