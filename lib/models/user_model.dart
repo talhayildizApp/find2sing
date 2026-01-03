@@ -12,6 +12,8 @@ class UserModel {
   final String email;
   final String displayName;
   final String? photoUrl;
+  final String? playerId; // Unique shareable ID (e.g., "BUSH-4921")
+  final List<String> fcmTokens;
   final DateTime createdAt;
   final DateTime lastLoginAt;
   final UserTier tier;
@@ -34,6 +36,8 @@ class UserModel {
     required this.email,
     required this.displayName,
     this.photoUrl,
+    this.playerId,
+    this.fcmTokens = const [],
     required this.createdAt,
     required this.lastLoginAt,
     this.tier = UserTier.free,
@@ -58,6 +62,8 @@ class UserModel {
       email: data['email'] ?? '',
       displayName: data['displayName'] ?? 'Oyuncu',
       photoUrl: data['photoUrl'],
+      playerId: data['playerId'],
+      fcmTokens: List<String>.from(data['fcmTokens'] ?? []),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       tier: UserTier.values.firstWhere(
@@ -84,6 +90,8 @@ class UserModel {
       'email': email,
       'displayName': displayName,
       'photoUrl': photoUrl,
+      'playerId': playerId,
+      'fcmTokens': fcmTokens,
       'createdAt': Timestamp.fromDate(createdAt),
       'lastLoginAt': Timestamp.fromDate(lastLoginAt),
       'tier': tier.name,
@@ -106,11 +114,14 @@ class UserModel {
     required String uid,
     required String email,
     String? displayName,
+    String? playerId,
   }) {
     return UserModel(
       uid: uid,
       email: email,
       displayName: displayName ?? email.split('@').first,
+      playerId: playerId,
+      fcmTokens: [],
       createdAt: DateTime.now(),
       lastLoginAt: DateTime.now(),
       tier: UserTier.free,
@@ -123,6 +134,8 @@ class UserModel {
       uid: 'guest',
       email: '',
       displayName: 'Misafir',
+      playerId: null,
+      fcmTokens: [],
       createdAt: DateTime.now(),
       lastLoginAt: DateTime.now(),
       tier: UserTier.guest,
@@ -133,6 +146,8 @@ class UserModel {
   UserModel copyWith({
     String? displayName,
     String? photoUrl,
+    String? playerId,
+    List<String>? fcmTokens,
     DateTime? lastLoginAt,
     UserTier? tier,
     int? totalSongsFound,
@@ -153,6 +168,8 @@ class UserModel {
       email: email,
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
+      playerId: playerId ?? this.playerId,
+      fcmTokens: fcmTokens ?? this.fcmTokens,
       createdAt: createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
       tier: tier ?? this.tier,

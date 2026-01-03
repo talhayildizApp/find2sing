@@ -1,10 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
+import '../../services/player_id_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final _playerIdService = PlayerIdService();
+  String? _playerId;
+  bool _loadingPlayerId = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlayerId();
+  }
+
+  Future<void> _loadPlayerId() async {
+    final authProvider = context.read<AuthProvider>();
+    final uid = authProvider.user?.uid;
+    if (uid == null) {
+      setState(() => _loadingPlayerId = false);
+      return;
+    }
+
+    final playerId = await _playerIdService.ensurePlayerId(uid);
+    if (mounted) {
+      setState(() {
+        _playerId = playerId;
+        _loadingPlayerId = false;
+      });
+    }
+  }
+
+  void _copyPlayerId() {
+    if (_playerId == null) return;
+    Clipboard.setData(ClipboardData(text: _playerId!));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Oyuncu ID kopyalandı!')),
+    );
+  }
+
+  void _sharePlayerId() {
+    if (_playerId == null) return;
+    final link = 'find2sing://match?opponentId=$_playerId';
+    Share.share(
+      'Find2Sing\'de benimle oyna!\n\nOyuncu ID: $_playerId\n\nLink: $link',
+      subject: 'Find2Sing Davet',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +204,11 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
 
+                        const SizedBox(height: 20),
+
+                        // Player ID Card
+                        _buildPlayerIdCard(),
+
                         const SizedBox(height: 32),
 
                         // İstatistik kartları
@@ -196,6 +253,94 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPlayerIdCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFCAB7FF), Color(0xFF9B7EDE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFCAB7FF).withOpacity(0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.games, color: Colors.white70, size: 16),
+              SizedBox(width: 6),
+              Text(
+                'Oyuncu ID',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _loadingPlayerId
+              ? const SizedBox(
+                  height: 28,
+                  width: 28,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              : Text(
+                  _playerId ?? '-',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildPlayerIdButton(Icons.copy, 'Kopyala', _copyPlayerId),
+              const SizedBox(width: 12),
+              _buildPlayerIdButton(Icons.share, 'Paylaş', _sharePlayerId),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Bu ID ile arkadaşlarınla online oynayabilirsin',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlayerIdButton(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }

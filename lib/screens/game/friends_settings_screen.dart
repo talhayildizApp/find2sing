@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/match_intent_model.dart';
+import '../online/online_match_screen.dart';
 import 'friend_game_screen.dart';
 import 'game_config.dart';
 
@@ -558,11 +560,13 @@ class _FriendsSettingsScreenState extends State<FriendsSettingsScreen> {
 
   void _startGame(BuildContext context) {
     if (_gameType == GameType.online) {
-      // TODO: Online matchmaking
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Online mod yakında aktif olacak!'),
-          backgroundColor: Color(0xFFCAB7FF),
+      // Navigate to OnlineMatchScreen for Friends Word mode
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const OnlineMatchScreen(
+            mode: MatchMode.friendsWord,
+          ),
         ),
       );
       return;

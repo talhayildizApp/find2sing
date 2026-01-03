@@ -33,6 +33,9 @@ dependencies:
   # Social Share
   share_plus: ^10.1.4
   
+  # Deep Linking
+  uni_links: ^0.5.1
+  
   # Material Icons
   cupertino_icons: ^1.0.8
 

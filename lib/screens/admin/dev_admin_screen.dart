@@ -1,11 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../services/firestore_seed_service.dart';
 
-/// Geliştirici/Admin ekranı
-/// Firestore'a örnek veri yüklemek ve test işlemleri için kullanılır
-/// NOT: Production'da bu ekranı kaldır veya gizle!
+import '../../services/admin_content_service.dart';
+
 class DevAdminScreen extends StatefulWidget {
   const DevAdminScreen({super.key});
 
@@ -13,762 +11,593 @@ class DevAdminScreen extends StatefulWidget {
   State<DevAdminScreen> createState() => _DevAdminScreenState();
 }
 
-class _DevAdminScreenState extends State<DevAdminScreen> {
-  final FirestoreSeedService _seedService = FirestoreSeedService();
-  bool _isLoading = false;
-  String _status = '';
-  String _currentOperation = '';
+class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tab;
 
-  // İşlem logları
-  final List<_LogEntry> _logs = [];
+  final AdminContentService _admin = AdminContentService();
 
-  void _addLog(String message, {bool isError = false, bool isSuccess = false}) {
-    setState(() {
-      _logs.insert(0, _LogEntry(
-        message: message,
-        time: DateTime.now(),
-        isError: isError,
-        isSuccess: isSuccess,
-      ));
-      // Max 50 log tut
-      if (_logs.length > 50) _logs.removeLast();
-    });
+  // Basit allowlist gate (sonra custom claims’e geçersin)
+  static const Set<String> _adminEmails = {
+    'your@email.com', // TODO: kendi email’in
+  };
+
+  bool get _isAdmin {
+    final email = FirebaseAuth.instance.currentUser?.email?.toLowerCase().trim();
+    if (email == null) return false;
+    return _adminEmails.contains(email);
   }
 
-  Future<void> _seedCategories() async {
+  // Import
+  final TextEditingController _json = TextEditingController();
+  bool _importing = false;
+  String? _importStatus;
+
+  // Filters
+  String _songSearch = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 4, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    _json.dispose();
+    super.dispose();
+  }
+
+  Future<void> _importSeed() async {
+    final text = _json.text.trim();
+    if (text.isEmpty) {
+      setState(() => _importStatus = 'Paste JSON first.');
+      return;
+    }
+
     setState(() {
-      _isLoading = true;
-      _currentOperation = 'Kategoriler yükleniyor...';
+      _importing = true;
+      _importStatus = null;
     });
-    _addLog('📁 Kategoriler yükleniyor...');
 
     try {
-      await _seedService.seedCategories();
-      _addLog('✅ Kategoriler başarıyla yüklendi!', isSuccess: true);
+      await _admin.importSeedJson(text);
+      setState(() => _importStatus = '✅ Import OK (challenges + songs + wordSets).');
     } catch (e) {
-      _addLog('❌ Hata: $e', isError: true);
+      setState(() => _importStatus = '❌ ERROR: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-        _currentOperation = '';
-      });
+      setState(() => _importing = false);
     }
-  }
-
-  Future<void> _seedChallenges() async {
-    setState(() {
-      _isLoading = true;
-      _currentOperation = 'Challenge\'lar yükleniyor...';
-    });
-    _addLog('🎮 Challenge\'lar yükleniyor...');
-
-    try {
-      await _seedService.seedChallenges();
-      _addLog('✅ Challenge\'lar başarıyla yüklendi!', isSuccess: true);
-    } catch (e) {
-      _addLog('❌ Hata: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-        _currentOperation = '';
-      });
-    }
-  }
-
-  Future<void> _seedSongs() async {
-    setState(() {
-      _isLoading = true;
-      _currentOperation = 'Şarkılar yükleniyor...';
-    });
-    _addLog('🎵 Örnek şarkılar yükleniyor...');
-
-    try {
-      await _seedService.seedSampleSongs();
-      _addLog('✅ Şarkılar başarıyla yüklendi!', isSuccess: true);
-    } catch (e) {
-      _addLog('❌ Hata: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-        _currentOperation = '';
-      });
-    }
-  }
-
-  Future<void> _seedAll() async {
-    setState(() {
-      _isLoading = true;
-      _currentOperation = 'Tüm veriler yükleniyor...';
-    });
-    _addLog('🚀 Tüm veriler yükleniyor...');
-
-    try {
-      await _seedService.seedAll();
-      _addLog('✅ Kategoriler ve Challenge\'lar yüklendi!', isSuccess: true);
-      
-      await _seedService.seedSampleSongs();
-      _addLog('✅ Örnek şarkılar yüklendi!', isSuccess: true);
-      
-      _addLog('🎉 Tüm işlemler tamamlandı!', isSuccess: true);
-    } catch (e) {
-      _addLog('❌ Hata: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-        _currentOperation = '';
-      });
-    }
-  }
-
-  Future<void> _clearAll() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-            SizedBox(width: 8),
-            Text('Dikkat!'),
-          ],
-        ),
-        content: const Text(
-          'Tüm kategori, challenge ve şarkı verileri silinecek!\n\nBu işlem geri alınamaz. Emin misin?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Evet, Sil'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() {
-      _isLoading = true;
-      _currentOperation = 'Veriler siliniyor...';
-    });
-    _addLog('🗑️ Tüm veriler siliniyor...');
-
-    try {
-      await _seedService.clearAll();
-      _addLog('✅ Tüm veriler silindi!', isSuccess: true);
-    } catch (e) {
-      _addLog('❌ Hata: $e', isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-        _currentOperation = '';
-      });
-    }
-  }
-
-  void _clearLogs() {
-    setState(() {
-      _logs.clear();
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-    final user = authProvider.user;
+    if (!_isAdmin) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Dev Admin')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Admin access denied.\n\nAdd your email to _adminEmails in DevAdminScreen.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
+      appBar: AppBar(
+        title: const Text('Dev Admin'),
+        bottom: TabBar(
+          controller: _tab,
+          tabs: const [
+            Tab(text: 'Import'),
+            Tab(text: 'Categories'),
+            Tab(text: 'Challenges'),
+            Tab(text: 'Songs'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (!mounted) return;
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: TabBarView(
+        controller: _tab,
         children: [
-          // Arka plan
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1a1a2e),
-                  Color(0xFF16213e),
-                  Color(0xFF0f3460),
-                ],
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: Column(
-              children: [
-                // Header
-                _buildHeader(context, user),
-
-                // Content
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Uyarı kartı
-                        _buildWarningCard(),
-
-                        const SizedBox(height: 20),
-
-                        // Hızlı işlemler
-                        _buildQuickActions(),
-
-                        const SizedBox(height: 20),
-
-                        // Detaylı işlemler
-                        _buildDetailedActions(),
-
-                        const SizedBox(height: 20),
-
-                        // Yüklenecek veriler bilgisi
-                        _buildDataInfo(),
-
-                        const SizedBox(height: 20),
-
-                        // Log konsolu
-                        _buildLogConsole(),
-
-                        const SizedBox(height: 32),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Loading overlay
-          if (_isLoading) _buildLoadingOverlay(),
+          _buildImportTab(),
+          _buildCategoriesTab(),
+          _buildChallengesTab(),
+          _buildSongsTab(),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context, dynamic user) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha:0.3),
-        border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha:0.1)),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Geri butonu
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha:0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new,
-                size: 18,
-                color: Colors.white,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Başlık
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🛠️ Developer Panel',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  'Firestore Seed & Test',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Kullanıcı bilgisi
-          if (user != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha:0.2),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withValues(alpha:0.5)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.person, size: 14, color: Colors.green),
-                  const SizedBox(width: 4),
-                  Text(
-                    user.displayName ?? 'User',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.green,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWarningCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.orange.withValues(alpha:0.2),
-            Colors.red.withValues(alpha:0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.withValues(alpha:0.5)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha:0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.orange,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Geliştirici Modu',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.orange,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Bu ekran sadece test amaçlıdır. Production\'da kaldırılmalıdır.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Hızlı İşlemler',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionButton(
-                icon: Icons.rocket_launch,
-                label: 'Tümünü Yükle',
-                color: Colors.green,
-                onTap: _isLoading ? null : _seedAll,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionButton(
-                icon: Icons.delete_forever,
-                label: 'Tümünü Sil',
-                color: Colors.red,
-                onTap: _isLoading ? null : _clearAll,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailedActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Detaylı İşlemler',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSmallActionButton(
-                icon: Icons.folder,
-                label: 'Kategoriler',
-                color: Colors.blue,
-                onTap: _isLoading ? null : _seedCategories,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildSmallActionButton(
-                icon: Icons.emoji_events,
-                label: 'Challenge',
-                color: Colors.purple,
-                onTap: _isLoading ? null : _seedChallenges,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildSmallActionButton(
-                icon: Icons.music_note,
-                label: 'Şarkılar',
-                color: Colors.pink,
-                onTap: _isLoading ? null : _seedSongs,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withValues(alpha:0.3),
-              color.withValues(alpha:0.1),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha:0.5)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSmallActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha:0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha:0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDataInfo() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha:0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.white54, size: 18),
-              SizedBox(width: 8),
-              Text(
-                'Yüklenecek Veriler',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow('📁', 'Kategoriler', '4 adet (TR)'),
-          _buildInfoRow('🎮', 'Challenge\'lar', '21 adet'),
-          _buildInfoRow('🎵', 'Örnek Şarkılar', '~30 adet'),
-          _buildInfoRow('🆓', 'Ücretsiz Challenge', '4 adet'),
-          const Divider(color: Colors.white24, height: 24),
-          const Text(
-            'Sanatçılar: Duman, Athena, Sertab Erener, Sezen Aksu, Müslüm Gürses, Ceza, Sagopa Kajmer, Tarkan',
-            style: TextStyle(fontSize: 11, color: Colors.white38),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String emoji, String label, String value) {
+  // -------------------------
+  // Import
+  // -------------------------
+  Widget _buildImportTab() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Colors.white60),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogConsole() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha:0.4),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha:0.1)),
-      ),
+      padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          // Console header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha:0.05),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.terminal, color: Colors.white54, size: 18),
-                const SizedBox(width: 8),
-                const Text(
-                  'Konsol',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
-                  ),
-                ),
-                const Spacer(),
-                if (_logs.isNotEmpty)
-                  GestureDetector(
-                    onTap: _clearLogs,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha:0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Temizle',
-                        style: TextStyle(fontSize: 11, color: Colors.white54),
-                      ),
-                    ),
-                  ),
-              ],
+          const Text(
+            'Paste seed JSON (4-challenge seed) to import.\nThis repo uses /songs (global) + challenge.songIds.',
+            style: TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: TextField(
+              controller: _json,
+              maxLines: null,
+              expands: true,
+              decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Paste JSON here...'),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),
-
-          // Console content
-          Container(
-            height: 200,
-            padding: const EdgeInsets.all(12),
-            child: _logs.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Henüz log yok...',
-                      style: TextStyle(color: Colors.white24, fontSize: 12),
-                    ),
-                  )
-                : ListView.builder(
-                    reverse: false,
-                    itemCount: _logs.length,
-                    itemBuilder: (context, index) {
-                      final log = _logs[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${log.time.hour.toString().padLeft(2, '0')}:${log.time.minute.toString().padLeft(2, '0')}:${log.time.second.toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                                color: Colors.white.withValues(alpha:0.3),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                log.message,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontFamily: 'monospace',
-                                  color: log.isError
-                                      ? Colors.red.shade300
-                                      : log.isSuccess
-                                          ? Colors.green.shade300
-                                          : Colors.white70,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+          const SizedBox(height: 10),
+          if (_importStatus != null) Text(_importStatus!, style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _importing ? null : _importSeed,
+              icon: _importing
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.upload),
+              label: const Text('Import seed'),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLoadingOverlay() {
-    return Container(
-      color: Colors.black.withValues(alpha:0.7),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1a1a2e),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha:0.1)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                width: 48,
-                height: 48,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: Color(0xFFCAB7FF),
+  // -------------------------
+  // Categories
+  // -------------------------
+  Widget _buildCategoriesTab() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('categories').orderBy('sortOrder').snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+
+        final docs = snap.data!.docs;
+
+        return Scaffold(
+          body: ListView.separated(
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final d = docs[i];
+              final x = d.data();
+              return ListTile(
+                title: Text((x['title'] ?? d.id).toString()),
+                subtitle: Text('id=${d.id} • type=${x['type'] ?? '-'} • lang=${x['language'] ?? '-'} • active=${x['isActive'] ?? false}'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () => _openCategoryEditor(d.id, x),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                _currentOperation,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
-                ),
-              ),
-            ],
+              );
+            },
           ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _openCategoryEditor('', const {}),
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openCategoryEditor(String id, Map<String, dynamic> data) async {
+    final idCtrl = TextEditingController(text: id);
+    final titleCtrl = TextEditingController(text: (data['title'] ?? '').toString());
+    final descCtrl = TextEditingController(text: (data['description'] ?? '').toString());
+    final emojiCtrl = TextEditingController(text: (data['iconEmoji'] ?? '🎵').toString());
+    final typeCtrl = TextEditingController(text: (data['type'] ?? 'playlist').toString());
+    final langCtrl = TextEditingController(text: (data['language'] ?? 'tr').toString());
+    final priceCtrl = TextEditingController(text: (data['priceUsd'] ?? 0).toString());
+    final sortCtrl = TextEditingController(text: (data['sortOrder'] ?? 0).toString());
+    bool active = (data['isActive'] ?? true) as bool;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text(id.isEmpty ? 'New Category' : 'Edit Category'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  TextField(controller: idCtrl, enabled: id.isEmpty, decoration: const InputDecoration(labelText: 'id (doc id)')),
+                  TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'title')),
+                  TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'description')),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: emojiCtrl, decoration: const InputDecoration(labelText: 'iconEmoji'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: typeCtrl, decoration: const InputDecoration(labelText: 'type'))),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'priceUsd'))),
+                    ],
+                  ),
+                  TextField(controller: sortCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'sortOrder')),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Active'),
+                    value: active,
+                    onChanged: (v) => setLocal(() => active = v),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (id.isNotEmpty)
+              TextButton(
+                onPressed: () async {
+                  await _admin.deleteCategory(id);
+                  if (mounted) Navigator.pop(context);
+                },
+                child: const Text('Delete'),
+              ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final newId = idCtrl.text.trim();
+                if (newId.isEmpty) return;
+                await _admin.upsertCategory(
+                  id: newId,
+                  title: titleCtrl.text.trim(),
+                  description: descCtrl.text.trim(),
+                  iconEmoji: emojiCtrl.text.trim(),
+                  type: typeCtrl.text.trim(),
+                  language: langCtrl.text.trim(),
+                  priceUsd: double.tryParse(priceCtrl.text.trim()) ?? 0.0,
+                  isActive: active,
+                  sortOrder: int.tryParse(sortCtrl.text.trim()) ?? 0,
+                );
+                if (mounted) Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
       ),
     );
   }
-}
 
-/// Log entry model
-class _LogEntry {
-  final String message;
-  final DateTime time;
-  final bool isError;
-  final bool isSuccess;
+  // -------------------------
+  // Challenges
+  // -------------------------
+  Widget _buildChallengesTab() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('challenges').orderBy('title').snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        final docs = snap.data!.docs;
 
-  _LogEntry({
-    required this.message,
-    required this.time,
-    this.isError = false,
-    this.isSuccess = false,
-  });
+        return ListView.separated(
+          itemCount: docs.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, i) {
+            final d = docs[i];
+            final x = d.data();
+            final totalSongs = (x['totalSongs'] ?? 0);
+            return ListTile(
+              title: Text((x['title'] ?? d.id).toString()),
+              subtitle: Text('id=${d.id} • cat=${x['categoryId'] ?? '-'} • lang=${x['language'] ?? '-'} • songs=$totalSongs • active=${x['isActive'] ?? false}'),
+              trailing: PopupMenuButton<String>(
+                onSelected: (v) async {
+                  if (v == 'edit') {
+                    await _openChallengeEditor(d.id, x);
+                  } else if (v == 'rebuild') {
+                    await _admin.rebuildChallengeSongIds(d.id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rebuilt songIds.')));
+                    }
+                  } else if (v == 'delete') {
+                    await _admin.deleteChallenge(d.id);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'rebuild', child: Text('Rebuild songIds')),
+                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openChallengeEditor(String id, Map<String, dynamic> data) async {
+    final titleCtrl = TextEditingController(text: (data['title'] ?? '').toString());
+    final catCtrl = TextEditingController(text: (data['categoryId'] ?? '').toString());
+    final typeCtrl = TextEditingController(text: (data['type'] ?? 'mixed').toString());
+    final diffCtrl = TextEditingController(text: (data['difficulty'] ?? 'medium').toString());
+    final langCtrl = TextEditingController(text: (data['language'] ?? 'tr').toString());
+    final priceCtrl = TextEditingController(text: (data['priceUsd'] ?? 0).toString());
+    bool active = (data['isActive'] ?? true) as bool;
+    bool isFree = (data['isFree'] ?? true) as bool;
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('Edit Challenge: $id'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'title')),
+                  TextField(controller: catCtrl, decoration: const InputDecoration(labelText: 'categoryId')),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: typeCtrl, decoration: const InputDecoration(labelText: 'type'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: diffCtrl, decoration: const InputDecoration(labelText: 'difficulty'))),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'priceUsd'))),
+                    ],
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Active'),
+                    value: active,
+                    onChanged: (v) => setLocal(() => active = v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('isFree'),
+                    value: isFree,
+                    onChanged: (v) => setLocal(() => isFree = v),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                await _admin.updateChallenge(id, {
+                  'title': titleCtrl.text.trim(),
+                  'categoryId': catCtrl.text.trim(),
+                  'type': typeCtrl.text.trim(),
+                  'difficulty': diffCtrl.text.trim(),
+                  'language': langCtrl.text.trim(),
+                  'priceUsd': double.tryParse(priceCtrl.text.trim()) ?? 0.0,
+                  'isActive': active,
+                  'isFree': isFree,
+                });
+                if (mounted) Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // -------------------------
+  // Songs
+  // -------------------------
+  Widget _buildSongsTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: TextField(
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Search songs (title/artist/challengeId)',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _songSearch = v.trim().toLowerCase()),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('songs').orderBy('artist').snapshots(),
+            builder: (context, snap) {
+              if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
+              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+
+              final docs = snap.data!.docs.where((d) {
+                if (_songSearch.isEmpty) return true;
+                final x = d.data();
+                final hay = '${d.id} ${(x['title'] ?? '')} ${(x['artist'] ?? '')} ${(x['challengeId'] ?? '')}'.toLowerCase();
+                return hay.contains(_songSearch);
+              }).toList();
+
+              return ListView.separated(
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, i) {
+                  final d = docs[i];
+                  final x = d.data();
+                  final keywords = (x['keywords'] as List<dynamic>? ?? const <dynamic>[]).length;
+                  return ListTile(
+                    title: Text('${x['artist'] ?? ''} — ${x['title'] ?? ''}'),
+                    subtitle: Text('id=${d.id} • challengeId=${x['challengeId'] ?? '-'} • year=${x['year'] ?? '-'} • keywords=$keywords'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => _openSongEditor(d.id, x),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: OutlinedButton.icon(
+            onPressed: () => _openSongEditor('', const {}),
+            icon: const Icon(Icons.add),
+            label: const Text('Add song'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openSongEditor(String songId, Map<String, dynamic> data) async {
+    final idCtrl = TextEditingController(text: songId);
+    final challengeIdCtrl = TextEditingController(text: (data['challengeId'] ?? '').toString());
+    final artistCtrl = TextEditingController(text: (data['artist'] ?? '').toString());
+    final titleCtrl = TextEditingController(text: (data['title'] ?? '').toString());
+    final yearCtrl = TextEditingController(text: (data['year'] ?? 2000).toString());
+    final albumCtrl = TextEditingController(text: (data['album'] ?? '').toString());
+    final previewCtrl = TextEditingController(text: (data['previewUrl'] ?? '').toString());
+
+    final List<String> keywords = (data['keywords'] as List<dynamic>? ?? const <dynamic>[])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    final addCtrl = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text(songId.isEmpty ? 'New Song' : 'Edit Song'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  TextField(controller: idCtrl, enabled: songId.isEmpty, decoration: const InputDecoration(labelText: 'songId (doc id)')),
+                  TextField(controller: challengeIdCtrl, decoration: const InputDecoration(labelText: 'challengeId')),
+                  TextField(controller: artistCtrl, decoration: const InputDecoration(labelText: 'artist')),
+                  TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'title')),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: yearCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'year'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: albumCtrl, decoration: const InputDecoration(labelText: 'album (optional)'))),
+                    ],
+                  ),
+                  TextField(controller: previewCtrl, decoration: const InputDecoration(labelText: 'previewUrl (optional)')),
+
+                  const SizedBox(height: 12),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Keywords', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: keywords
+                        .map((w) => Chip(
+                              label: Text(w),
+                              onDeleted: () => setLocal(() => keywords.remove(w)),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: addCtrl,
+                          decoration: const InputDecoration(labelText: 'Add keywords (comma/space separated)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          final raw = addCtrl.text.trim();
+                          if (raw.isEmpty) return;
+                          final parts = raw
+                              .split(RegExp(r'[,\s]+'))
+                              .map((e) => e.trim())
+                              .where((e) => e.isNotEmpty)
+                              .toList();
+                          setLocal(() {
+                            keywords.addAll(parts);
+                            final uniq = keywords.toSet().toList()..sort();
+                            keywords
+                              ..clear()
+                              ..addAll(uniq);
+                            addCtrl.clear();
+                          });
+                        },
+                        child: const Text('Add'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (songId.isNotEmpty)
+              TextButton(
+                onPressed: () async {
+                  await _admin.deleteSong(songId);
+                  if (mounted) Navigator.pop(context);
+                },
+                child: const Text('Delete'),
+              ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final newId = idCtrl.text.trim();
+                if (newId.isEmpty) return;
+
+                await _admin.upsertSong(
+                  songId: newId,
+                  challengeId: challengeIdCtrl.text.trim(),
+                  title: titleCtrl.text.trim(),
+                  artist: artistCtrl.text.trim(),
+                  year: int.tryParse(yearCtrl.text.trim()) ?? 2000,
+                  album: albumCtrl.text.trim().isEmpty ? null : albumCtrl.text.trim(),
+                  previewUrl: previewCtrl.text.trim().isEmpty ? null : previewCtrl.text.trim(),
+                  keywords: keywords,
+                );
+
+                if (mounted) Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
