@@ -23,20 +23,11 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -50,21 +41,51 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBQNaQuenSXEaz8gP7snzSaTwBNDQ1OeP0',
-    appId: '1:96394344519:web:cac9fcda4f270c067bd962',
-    messagingSenderId: '96394344519',
-    projectId: 'sarkiapp-be158',
-    authDomain: 'sarkiapp-be158.firebaseapp.com',
-    storageBucket: 'sarkiapp-be158.firebasestorage.app',
-    measurementId: 'G-1QBZS9VCSM',
+    apiKey: 'AIzaSyD-gFqFDsFXEPlJzZjLGadHPKBTx2DQjkk',
+    appId: '1:1038132803886:web:6451a1b98ae8b9be3822bf',
+    messagingSenderId: '1038132803886',
+    projectId: 'find2sing',
+    authDomain: 'find2sing.firebaseapp.com',
+    storageBucket: 'find2sing.firebasestorage.app',
+    measurementId: 'G-FBFQ8VGTNZ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCDOBw2V1p-5lXUoeYi63bxRISeHFiJMrY',
-    appId: '1:96394344519:android:321c5add43ae660c7bd962',
-    messagingSenderId: '96394344519',
-    projectId: 'sarkiapp-be158',
-    storageBucket: 'sarkiapp-be158.firebasestorage.app',
+    apiKey: 'AIzaSyBDgEmAx57H-zTmDygy_QaaT-7FiemWJvM',
+    appId: '1:1038132803886:android:7257ebb0021a4d943822bf',
+    messagingSenderId: '1038132803886',
+    projectId: 'find2sing',
+    storageBucket: 'find2sing.firebasestorage.app',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDi5dZgq7fUP7Gfii2jxecGdCgbIM5pE48',
+    appId: '1:1038132803886:ios:b8d977a80626b25e3822bf',
+    messagingSenderId: '1038132803886',
+    projectId: 'find2sing',
+    storageBucket: 'find2sing.firebasestorage.app',
+    iosClientId: '1038132803886-g8audousq9itpavf3huo12jtfl73e8gn.apps.googleusercontent.com',
+    iosBundleId: 'com.example.sarkiapp',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDi5dZgq7fUP7Gfii2jxecGdCgbIM5pE48',
+    appId: '1:1038132803886:ios:33ed47119360f46f3822bf',
+    messagingSenderId: '1038132803886',
+    projectId: 'find2sing',
+    storageBucket: 'find2sing.firebasestorage.app',
+    iosClientId: '1038132803886-lei1n5omn0o41olp8s95ahj0fpscrims.apps.googleusercontent.com',
+    iosBundleId: 'com.tbdigital.find2sing',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyD-gFqFDsFXEPlJzZjLGadHPKBTx2DQjkk',
+    appId: '1:1038132803886:web:feff9aeb747374043822bf',
+    messagingSenderId: '1038132803886',
+    projectId: 'find2sing',
+    authDomain: 'find2sing.firebaseapp.com',
+    storageBucket: 'find2sing.firebasestorage.app',
+    measurementId: 'G-MZSZYGRWKJ',
   );
 
 }

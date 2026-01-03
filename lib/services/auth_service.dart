@@ -56,7 +56,7 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.failure('Beklenmeyen bir hata oluştu: $e');
+      return AuthResult.failure('Kayıt sırasında bir hata oluştu');
     }
   }
 
@@ -77,7 +77,7 @@ class AuthService {
 
       // Firestore'dan kullanıcı bilgilerini al ve güncelle
       final userModel = await _getOrCreateUserDocument(credential.user!);
-      
+
       // Son giriş zamanını güncelle
       await _updateLastLogin(credential.user!.uid);
 
@@ -85,22 +85,29 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.failure('Beklenmeyen bir hata oluştu: $e');
+      return AuthResult.failure('Giriş sırasında bir hata oluştu');
     }
   }
 
   /// Google ile giriş yap
   Future<AuthResult> signInWithGoogle() async {
     try {
+      // Önceki oturumu temizle (app dışına çıkma bug fix)
+      await _googleSignIn.signOut();
+      
       // Google Sign-In akışını başlat
       final googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
         return AuthResult.failure('Google girişi iptal edildi');
       }
 
       // Google kimlik bilgilerini al
       final googleAuth = await googleUser.authentication;
+
+      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+        return AuthResult.failure('Google kimlik bilgileri alınamadı');
+      }
 
       // Firebase credential oluştur
       final credential = GoogleAuthProvider.credential(
@@ -117,7 +124,7 @@ class AuthService {
 
       // Firestore'da kullanıcı dokümanını al veya oluştur
       final userModel = await _getOrCreateUserDocument(userCredential.user!);
-      
+
       // Son giriş zamanını güncelle
       await _updateLastLogin(userCredential.user!.uid);
 
@@ -125,7 +132,15 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.failure('Google girişi sırasında hata: $e');
+      // Daha kullanıcı dostu hata mesajı
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('network') || errorStr.contains('internet')) {
+        return AuthResult.failure('İnternet bağlantınızı kontrol edin');
+      }
+      if (errorStr.contains('cancel')) {
+        return AuthResult.failure('Google girişi iptal edildi');
+      }
+      return AuthResult.failure('Google ile giriş yapılamadı. Tekrar deneyin.');
     }
   }
 
@@ -147,9 +162,35 @@ class AuthService {
 
       return AuthResult.success(userModel);
     } on FirebaseAuthException catch (e) {
-      return AuthResult.failure(_getAuthErrorMessage(e.code));
+      // Apple Sign-In spesifik hata mesajları
+      switch (e.code) {
+        case 'canceled':
+        case 'user-canceled':
+          return AuthResult.failure('Apple girişi iptal edildi');
+        case 'invalid-credential':
+          return AuthResult.failure('Apple kimlik bilgileri geçersiz');
+        case 'operation-not-allowed':
+          return AuthResult.failure('Apple ile giriş aktif değil');
+        case 'network-request-failed':
+          return AuthResult.failure('İnternet bağlantınızı kontrol edin');
+        default:
+          return AuthResult.failure(_getAuthErrorMessage(e.code));
+      }
     } catch (e) {
-      return AuthResult.failure('Apple girişi sırasında hata: $e');
+      // Daha kullanıcı dostu hata mesajı
+      final errorStr = e.toString().toLowerCase();
+      if (errorStr.contains('cancel')) {
+        return AuthResult.failure('Apple girişi iptal edildi');
+      }
+      if (errorStr.contains('network') || errorStr.contains('internet')) {
+        return AuthResult.failure('İnternet bağlantınızı kontrol edin');
+      }
+      if (errorStr.contains('unknown')) {
+        return AuthResult.failure(
+          'Apple ile giriş yapılamadı. Ayarlar > Apple Kimliği > Şifre ve Güvenlik bölümünden kontrol edin.',
+        );
+      }
+      return AuthResult.failure('Apple ile giriş yapılamadı. Tekrar deneyin.');
     }
   }
 
@@ -167,7 +208,7 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_getAuthErrorMessage(e.code));
     } catch (e) {
-      return AuthResult.failure('Email gönderilemedi: $e');
+      return AuthResult.failure('Email gönderilemedi. Tekrar deneyin.');
     }
   }
 
@@ -201,96 +242,38 @@ class AuthService {
   Future<bool> updateUserProfile({
     String? displayName,
     String? photoUrl,
-    String? preferredLanguage,
+    String? favoriteArtist,
   }) async {
-    final uid = currentUserId;
-    if (uid == null) return false;
+    final user = currentUser;
+    if (user == null) return false;
 
     try {
-      final updates = <String, dynamic>{};
-      
+      final updates = <String, dynamic>{
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
       if (displayName != null) {
         updates['displayName'] = displayName;
-        await currentUser?.updateDisplayName(displayName);
+        await user.updateDisplayName(displayName);
       }
-      
+
       if (photoUrl != null) {
         updates['photoUrl'] = photoUrl;
-        await currentUser?.updatePhotoURL(photoUrl);
-      }
-      
-      if (preferredLanguage != null) {
-        updates['preferredLanguage'] = preferredLanguage;
+        await user.updatePhotoURL(photoUrl);
       }
 
-      if (updates.isNotEmpty) {
-        await _usersCollection.doc(uid).update(updates);
+      if (favoriteArtist != null) {
+        updates['favoriteArtist'] = favoriteArtist;
       }
-      
+
+      await _usersCollection.doc(user.uid).update(updates);
       return true;
     } catch (e) {
       return false;
     }
   }
 
-  /// Oyun istatistiklerini güncelle
-  Future<void> updateGameStats({
-    required int songsFound,
-    required int timePlayed,
-  }) async {
-    final uid = currentUserId;
-    if (uid == null) return;
-
-    try {
-      await _usersCollection.doc(uid).update({
-        'totalSongsFound': FieldValue.increment(songsFound),
-        'totalGamesPlayed': FieldValue.increment(1),
-        'totalTimePlayed': FieldValue.increment(timePlayed),
-      });
-    } catch (e) {
-      // Hata sessizce geç
-    }
-  }
-
-  /// Reklam izleyerek kelime değiştirme hakkı ekle
-  Future<bool> addFreeWordChanges(int count) async {
-    final uid = currentUserId;
-    if (uid == null) return false;
-
-    try {
-      await _usersCollection.doc(uid).update({
-        'wordChangeCredits': FieldValue.increment(count),
-        'lastAdWatched': FieldValue.serverTimestamp(),
-      });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Kelime değiştirme hakkı kullan
-  Future<bool> useFreeWordChange() async {
-    final uid = currentUserId;
-    if (uid == null) return false;
-
-    try {
-      final doc = await _usersCollection.doc(uid).get();
-      final currentChanges = doc.data()?['wordChangeCredits'] ?? 0;
-      
-      if (currentChanges <= 0) return false;
-
-      await _usersCollection.doc(uid).update({
-        'wordChangeCredits': FieldValue.increment(-1),
-      });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // ============ PRIVATE HELPERS ============
-
-  /// Firestore'da kullanıcı dokümanını al veya oluştur
+  /// Firestore'dan kullanıcı dokümanını al veya oluştur
   Future<UserModel> _getOrCreateUserDocument(User firebaseUser) async {
     final docRef = _usersCollection.doc(firebaseUser.uid);
     final doc = await docRef.get();
@@ -299,7 +282,7 @@ class AuthService {
       return UserModel.fromFirestore(doc);
     }
 
-    // Yeni kullanıcı oluştur
+    // Yeni kullanıcı dokümanı oluştur
     final userModel = UserModel.newUser(
       uid: firebaseUser.uid,
       email: firebaseUser.email ?? '',
@@ -340,8 +323,10 @@ class AuthService {
         return 'İnternet bağlantınızı kontrol edin';
       case 'invalid-credential':
         return 'Email veya şifre hatalı';
+      case 'account-exists-with-different-credential':
+        return 'Bu email farklı bir giriş yöntemiyle kayıtlı';
       default:
-        return 'Bir hata oluştu: $code';
+        return 'Bir hata oluştu. Tekrar deneyin.';
     }
   }
 }

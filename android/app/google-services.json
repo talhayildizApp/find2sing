@@ -1,26 +1,43 @@
 {
   "project_info": {
-    "project_number": "96394344519",
-    "project_id": "sarkiapp-be158",
-    "storage_bucket": "sarkiapp-be158.firebasestorage.app"
+    "project_number": "1038132803886",
+    "project_id": "find2sing",
+    "storage_bucket": "find2sing.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:96394344519:android:321c5add43ae660c7bd962",
+        "mobilesdk_app_id": "1:1038132803886:android:7257ebb0021a4d943822bf",
         "android_client_info": {
           "package_name": "com.example.sarkiapp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1038132803886-ho2ntgcgvoqrhldakf9v1b8634qvhud4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCDOBw2V1p-5lXUoeYi63bxRISeHFiJMrY"
+          "current_key": "AIzaSyBDgEmAx57H-zTmDygy_QaaT-7FiemWJvM"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1038132803886-ho2ntgcgvoqrhldakf9v1b8634qvhud4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1038132803886-g8audousq9itpavf3huo12jtfl73e8gn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sarkiapp"
+              }
+            }
+          ]
         }
       }
     }

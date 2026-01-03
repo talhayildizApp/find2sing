@@ -1,26 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/challenge_model.dart';
-import 'pricing_service.dart';
 
-/// Firestore'a örnek veri ekleyen servis
-/// NOT: Bu sadece geliştirme/test amaçlıdır!
+/// Firestore'a başlangıç verilerini ekleyen servis
 class FirestoreSeedService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Tüm örnek verileri ekle
+  /// Tüm seed verilerini ekle
   Future<void> seedAll() async {
-    print('🌱 Seed başlıyor...');
+    print('🌱 Seed işlemi başlıyor...');
     
-    // Önce kategorileri ekle
     await seedCategories();
-    
-    // Sonra challenge'ları ekle
     await seedChallenges();
     
-    // Son olarak şarkıları ekle
-    await seedSongs();
-    
-    print('✅ Seed tamamlandı!');
+    print('✅ Seed işlemi tamamlandı!');
   }
 
   /// Kategorileri ekle
@@ -28,247 +19,185 @@ class FirestoreSeedService {
     print('📁 Kategoriler ekleniyor...');
 
     final categories = [
-      // Türkçe Kategoriler
+      // === SANATÇI DİSKOGRAFİ ===
       {
-        'id': 'turkce_pop',
-        'title': 'Türkçe Pop',
-        'subtitle': 'En sevilen Türkçe pop şarkılar',
-        'description': 'Türkiye\'nin en popüler pop şarkıcılarının hit şarkıları',
-        'language': 'tr',
+        'id': 'artist_discography',
+        'title': 'Sanatçı Diskografi',
+        'description': 'Favori sanatçılarının tüm şarkılarını bil',
         'iconEmoji': '🎤',
-        'challengeCount': 5,
-        'challengeIds': ['tarkan', 'sezen_aksu', 'ajda_pekkan', 'sertab_erener', 'hadise'],
-        'priceUsd': PricingService.calculateCategoryPrice(5),
-        'discountPercent': 40.0,
+        'language': 'tr',
+        'type': 'artist',
+        'challengeCount': 9,
+        'priceUsd': 2.99,
         'isActive': true,
         'sortOrder': 1,
         'createdAt': FieldValue.serverTimestamp(),
       },
+
+      // === EN İYİ ALBÜMLER ===
       {
-        'id': 'turkce_rock',
-        'title': 'Türkçe Rock',
-        'subtitle': 'Anadolu rock\'un efsaneleri',
-        'description': 'Türk rock müziğinin en iyi örnekleri',
+        'id': 'best_albums',
+        'title': 'En İyi Albümler',
+        'description': 'Efsane albümlerin şarkılarını tahmin et',
+        'iconEmoji': '💿',
         'language': 'tr',
-        'iconEmoji': '🎸',
+        'type': 'album',
         'challengeCount': 4,
-        'challengeIds': ['duman', 'mor_ve_otesi', 'teoman', 'manga'],
-        'priceUsd': PricingService.calculateCategoryPrice(4),
-        'discountPercent': 40.0,
+        'priceUsd': 1.99,
         'isActive': true,
         'sortOrder': 2,
         'createdAt': FieldValue.serverTimestamp(),
       },
+
+      // === LİSTELER (SPOTIFY) ===
       {
-        'id': '90lar_turkce',
-        'title': '90\'lar Türkçe',
-        'subtitle': 'Nostaljik 90\'lar hitleri',
-        'description': '90\'ların unutulmaz Türkçe şarkıları',
+        'id': 'playlists',
+        'title': 'Listeler',
+        'description': 'Popüler playlist\'lerdeki şarkıları bil',
+        'iconEmoji': '📋',
         'language': 'tr',
-        'iconEmoji': '📻',
-        'challengeCount': 3,
-        'challengeIds': ['90lar_pop', '90lar_slow', '90lar_dance'],
-        'priceUsd': PricingService.calculateCategoryPrice(3),
-        'discountPercent': 40.0,
+        'type': 'playlist',
+        'challengeCount': 4,
+        'priceUsd': 1.99,
         'isActive': true,
         'sortOrder': 3,
         'createdAt': FieldValue.serverTimestamp(),
       },
-      // İngilizce Kategoriler
+
+      // === DÖNEMLER ===
       {
-        'id': 'english_pop',
-        'title': 'English Pop',
-        'subtitle': 'Global pop hits',
-        'description': 'The biggest pop hits from around the world',
-        'language': 'en',
-        'iconEmoji': '🌍',
+        'id': 'eras',
+        'title': 'Dönemler',
+        'description': 'Farklı dönemlerin hit şarkılarını hatırla',
+        'iconEmoji': '📅',
+        'language': 'tr',
+        'type': 'era',
         'challengeCount': 4,
-        'challengeIds': ['taylor_swift', 'ed_sheeran', 'adele', 'bruno_mars'],
-        'priceUsd': PricingService.calculateCategoryPrice(4),
-        'discountPercent': 40.0,
+        'priceUsd': 1.99,
         'isActive': true,
-        'sortOrder': 1,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'english_rock',
-        'title': 'Rock Classics',
-        'subtitle': 'Legendary rock bands',
-        'description': 'Classic rock hits that never get old',
-        'language': 'en',
-        'iconEmoji': '🤘',
-        'challengeCount': 4,
-        'challengeIds': ['queen', 'beatles', 'coldplay', 'u2'],
-        'priceUsd': PricingService.calculateCategoryPrice(4),
-        'discountPercent': 40.0,
-        'isActive': true,
-        'sortOrder': 2,
+        'sortOrder': 4,
         'createdAt': FieldValue.serverTimestamp(),
       },
     ];
 
+    final batch = _db.batch();
+
     for (final category in categories) {
-      final id = category['id'] as String;
-      await _db.collection('categories').doc(id).set(category);
-      print('  ✓ Kategori eklendi: $id');
+      final docRef = _db.collection('categories').doc(category['id'] as String);
+      batch.set(docRef, category);
     }
+
+    await batch.commit();
+    print('  ✓ ${categories.length} kategori eklendi');
   }
 
   /// Challenge'ları ekle
   Future<void> seedChallenges() async {
-    print('🏆 Challenge\'lar ekleniyor...');
+    print('🎮 Challenge\'lar ekleniyor...');
 
     final challenges = [
-      // === TÜRKÇE POP ===
-      {
-        'id': 'tarkan',
-        'categoryId': 'turkce_pop',
-        'title': 'Tarkan Challenge',
-        'subtitle': 'Megastar\'ın en hit şarkıları',
-        'description': 'Tarkan\'ın 90\'lardan bugüne en sevilen şarkılarını bil!',
-        'type': 'artist',
-        'difficulty': 'easy',
-        'language': 'tr',
-        'songIds': ['tarkan_1', 'tarkan_2', 'tarkan_3', 'tarkan_4', 'tarkan_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': false,
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'sezen_aksu',
-        'categoryId': 'turkce_pop',
-        'title': 'Sezen Aksu Challenge',
-        'subtitle': 'Minik Serçe\'nin şaheserleri',
-        'description': 'Türk pop müziğinin divası Sezen Aksu\'nun unutulmaz şarkıları',
-        'type': 'artist',
-        'difficulty': 'medium',
-        'language': 'tr',
-        'songIds': ['sezen_1', 'sezen_2', 'sezen_3', 'sezen_4', 'sezen_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': false,
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'ajda_pekkan',
-        'categoryId': 'turkce_pop',
-        'title': 'Ajda Pekkan Challenge',
-        'subtitle': 'Süperstar\'ın klasikleri',
-        'description': 'Ajda Pekkan\'ın tüm zamanların en sevilen şarkıları',
-        'type': 'artist',
-        'difficulty': 'hard',
-        'language': 'tr',
-        'songIds': ['ajda_1', 'ajda_2', 'ajda_3', 'ajda_4', 'ajda_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': false,
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'sertab_erener',
-        'categoryId': 'turkce_pop',
-        'title': 'Sertab Erener Challenge',
-        'subtitle': 'Eurovision şampiyonu',
-        'description': 'Sertab Erener\'in en güzel şarkıları',
-        'type': 'artist',
-        'difficulty': 'medium',
-        'language': 'tr',
-        'songIds': ['sertab_1', 'sertab_2', 'sertab_3', 'sertab_4', 'sertab_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': true, // ÜCRETSİZ!
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'hadise',
-        'categoryId': 'turkce_pop',
-        'title': 'Hadise Challenge',
-        'subtitle': 'Dans pistinin kraliçesi',
-        'description': 'Hadise\'nin en hit şarkıları',
-        'type': 'artist',
-        'difficulty': 'easy',
-        'language': 'tr',
-        'songIds': ['hadise_1', 'hadise_2', 'hadise_3', 'hadise_4', 'hadise_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': false,
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-
-      // === TÜRKÇE ROCK ===
+      // ═══════════════════════════════════════════════════════════
+      // SANATÇI DİSKOGRAFİ
+      // ═══════════════════════════════════════════════════════════
+      
+      // Duman
       {
         'id': 'duman',
-        'categoryId': 'turkce_rock',
-        'title': 'Duman Challenge',
-        'subtitle': 'Alternatif rock\'un öncüleri',
-        'description': 'Duman grubunun en sevilen şarkıları',
+        'categoryId': 'artist_discography',
+        'title': 'Duman',
+        'subtitle': 'Türk Rock\'unun efsanesi',
+        'description': 'Duman\'ın en sevilen şarkılarını bil',
         'type': 'artist',
         'difficulty': 'medium',
         'language': 'tr',
-        'songIds': ['duman_1', 'duman_2', 'duman_3', 'duman_4', 'duman_5'],
-        'totalSongs': 5,
+        'artistName': 'Duman',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
+        'priceUsd': 0.99,
+        'isFree': true, // İlk challenge ücretsiz
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Athena
+      {
+        'id': 'athena',
+        'categoryId': 'artist_discography',
+        'title': 'Athena',
+        'subtitle': 'Ska-punk\'ın Türk temsilcisi',
+        'description': 'Athena\'nın enerjik şarkılarını tahmin et',
+        'type': 'artist',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'artistName': 'Athena',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 12,
         'priceUsd': 0.99,
         'isFree': false,
         'isActive': true,
         'playCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       },
+
+      // Sertab Erener
       {
-        'id': 'mor_ve_otesi',
-        'categoryId': 'turkce_rock',
-        'title': 'Mor ve Ötesi Challenge',
-        'subtitle': 'Türk rock\'unun efsanesi',
-        'description': 'Mor ve Ötesi\'nin unutulmaz şarkıları',
+        'id': 'sertab_erener',
+        'categoryId': 'artist_discography',
+        'title': 'Sertab Erener',
+        'subtitle': 'Eurovision şampiyonu',
+        'description': 'Sertab Erener\'in unutulmaz şarkıları',
         'type': 'artist',
-        'difficulty': 'medium',
+        'difficulty': 'easy',
         'language': 'tr',
-        'songIds': ['mvo_1', 'mvo_2', 'mvo_3', 'mvo_4', 'mvo_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': true, // ÜCRETSİZ!
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'teoman',
-        'categoryId': 'turkce_rock',
-        'title': 'Teoman Challenge',
-        'subtitle': 'Türk rock\'unun yıldızı',
-        'description': 'Teoman\'ın en güzel şarkıları',
-        'type': 'artist',
-        'difficulty': 'medium',
-        'language': 'tr',
-        'songIds': ['teoman_1', 'teoman_2', 'teoman_3', 'teoman_4', 'teoman_5'],
-        'totalSongs': 5,
+        'artistName': 'Sertab Erener',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 12,
         'priceUsd': 0.99,
         'isFree': false,
         'isActive': true,
         'playCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       },
+
+      // Sezen Aksu
       {
-        'id': 'manga',
-        'categoryId': 'turkce_rock',
-        'title': 'maNga Challenge',
-        'subtitle': 'Nu-metal\'in Türk temsilcisi',
-        'description': 'maNga\'nın en hit şarkıları',
+        'id': 'sezen_aksu',
+        'categoryId': 'artist_discography',
+        'title': 'Sezen Aksu',
+        'subtitle': 'Minik Serçe',
+        'description': 'Türk pop müziğinin divası',
+        'type': 'artist',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'artistName': 'Sezen Aksu',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Müslüm Gürses
+      {
+        'id': 'muslum_gurses',
+        'categoryId': 'artist_discography',
+        'title': 'Müslüm Gürses',
+        'subtitle': 'Müslüm Baba',
+        'description': 'Arabesk\'in efsanevi sesi',
         'type': 'artist',
         'difficulty': 'hard',
         'language': 'tr',
-        'songIds': ['manga_1', 'manga_2', 'manga_3', 'manga_4', 'manga_5'],
-        'totalSongs': 5,
+        'artistName': 'Müslüm Gürses',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
         'priceUsd': 0.99,
         'isFree': false,
         'isActive': true,
@@ -276,69 +205,342 @@ class FirestoreSeedService {
         'createdAt': FieldValue.serverTimestamp(),
       },
 
-      // === ENGLISH POP ===
+      // Ceza
       {
-        'id': 'taylor_swift',
-        'categoryId': 'english_pop',
-        'title': 'Taylor Swift Challenge',
-        'subtitle': 'Pop princess hits',
-        'description': 'Taylor Swift\'s biggest hits from all eras',
-        'type': 'artist',
-        'difficulty': 'easy',
-        'language': 'en',
-        'songIds': ['taylor_1', 'taylor_2', 'taylor_3', 'taylor_4', 'taylor_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': false,
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'ed_sheeran',
-        'categoryId': 'english_pop',
-        'title': 'Ed Sheeran Challenge',
-        'subtitle': 'The ginger genius',
-        'description': 'Ed Sheeran\'s most loved songs',
-        'type': 'artist',
-        'difficulty': 'easy',
-        'language': 'en',
-        'songIds': ['ed_1', 'ed_2', 'ed_3', 'ed_4', 'ed_5'],
-        'totalSongs': 5,
-        'priceUsd': 0.99,
-        'isFree': true, // FREE!
-        'isActive': true,
-        'playCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      {
-        'id': 'adele',
-        'categoryId': 'english_pop',
-        'title': 'Adele Challenge',
-        'subtitle': 'The voice of a generation',
-        'description': 'Adele\'s emotional ballads and hits',
+        'id': 'ceza',
+        'categoryId': 'artist_discography',
+        'title': 'Ceza',
+        'subtitle': 'Türk Rap\'inin öncüsü',
+        'description': 'Ceza\'nın efsane parçaları',
         'type': 'artist',
         'difficulty': 'medium',
-        'language': 'en',
-        'songIds': ['adele_1', 'adele_2', 'adele_3', 'adele_4', 'adele_5'],
-        'totalSongs': 5,
+        'language': 'tr',
+        'artistName': 'Ceza',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 12,
         'priceUsd': 0.99,
         'isFree': false,
         'isActive': true,
         'playCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       },
+
+      // Sagopa Kajmer
       {
-        'id': 'bruno_mars',
-        'categoryId': 'english_pop',
-        'title': 'Bruno Mars Challenge',
-        'subtitle': 'Uptown funk master',
-        'description': 'Bruno Mars\' groovy hits',
+        'id': 'sagopa_kajmer',
+        'categoryId': 'artist_discography',
+        'title': 'Sagopa Kajmer',
+        'subtitle': 'Lirik rap ustası',
+        'description': 'Sagopa\'nın derin şarkıları',
+        'type': 'artist',
+        'difficulty': 'hard',
+        'language': 'tr',
+        'artistName': 'Sagopa Kajmer',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 12,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Tarkan
+      {
+        'id': 'tarkan',
+        'categoryId': 'artist_discography',
+        'title': 'Tarkan',
+        'subtitle': 'Megastar',
+        'description': 'Tarkan\'ın dünyaca ünlü hitleri',
         'type': 'artist',
         'difficulty': 'easy',
+        'language': 'tr',
+        'artistName': 'Tarkan',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // ═══════════════════════════════════════════════════════════
+      // EN İYİ ALBÜMLER
+      // ═══════════════════════════════════════════════════════════
+
+      // Popçular Dışarı - Athena
+      {
+        'id': 'album_popcular_disari',
+        'categoryId': 'best_albums',
+        'title': 'Popçular Dışarı',
+        'subtitle': 'Athena (2002)',
+        'description': 'Athena\'nın efsane albümü',
+        'type': 'album',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'artistName': 'Athena',
+        'albumName': 'Popçular Dışarı',
+        'albumYear': 2002,
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 10,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Aacayipsin - Duman
+      {
+        'id': 'album_aacayipsin',
+        'categoryId': 'best_albums',
+        'title': 'Aacayipsin',
+        'subtitle': 'Duman (1999)',
+        'description': 'Duman\'ın ilk albümü',
+        'type': 'album',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'artistName': 'Duman',
+        'albumName': 'Aacayipsin',
+        'albumYear': 1999,
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 10,
+        'priceUsd': 0.99,
+        'isFree': true, // Ücretsiz
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Medcezir - Teoman
+      {
+        'id': 'album_medcezir',
+        'categoryId': 'best_albums',
+        'title': 'Medcezir',
+        'subtitle': 'Teoman (2004)',
+        'description': 'Teoman\'ın başyapıtı',
+        'type': 'album',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'artistName': 'Teoman',
+        'albumName': 'Medcezir',
+        'albumYear': 2004,
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 10,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Dünya Yalan Söylüyor - Duman
+      {
+        'id': 'album_dunya_yalan',
+        'categoryId': 'best_albums',
+        'title': 'Dünya Yalan Söylüyor',
+        'subtitle': 'Duman (2004)',
+        'description': 'Duman\'ın ikonik albümü',
+        'type': 'album',
+        'difficulty': 'easy',
+        'language': 'tr',
+        'artistName': 'Duman',
+        'albumName': 'Dünya Yalan Söylüyor',
+        'albumYear': 2004,
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 10,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // ═══════════════════════════════════════════════════════════
+      // LİSTELER (SPOTIFY)
+      // ═══════════════════════════════════════════════════════════
+
+      // Top 50 – Turkey
+      {
+        'id': 'playlist_top50_turkey',
+        'categoryId': 'playlists',
+        'title': 'Top 50 – Turkey',
+        'subtitle': 'Türkiye\'nin en çok dinlenenleri',
+        'description': 'Spotify Türkiye Top 50 listesi',
+        'type': 'playlist',
+        'difficulty': 'easy',
+        'language': 'tr',
+        'playlistSource': 'Spotify',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 20,
+        'priceUsd': 0.99,
+        'isFree': true, // Ücretsiz
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // New Music Friday
+      {
+        'id': 'playlist_new_music_friday',
+        'categoryId': 'playlists',
+        'title': 'New Music Friday',
+        'subtitle': 'Haftanın yeni çıkanları',
+        'description': 'En yeni Türkçe şarkılar',
+        'type': 'playlist',
+        'difficulty': 'hard',
+        'language': 'tr',
+        'playlistSource': 'Spotify',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // Top 50 – Global
+      {
+        'id': 'playlist_top50_global',
+        'categoryId': 'playlists',
+        'title': 'Top 50 – Global',
+        'subtitle': 'Dünya genelinde en popülerler',
+        'description': 'Spotify Global Top 50',
+        'type': 'playlist',
+        'difficulty': 'medium',
         'language': 'en',
-        'songIds': ['bruno_1', 'bruno_2', 'bruno_3', 'bruno_4', 'bruno_5'],
-        'totalSongs': 5,
+        'playlistSource': 'Spotify',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 20,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // RapCaviar
+      {
+        'id': 'playlist_rapcaviar',
+        'categoryId': 'playlists',
+        'title': 'RapCaviar',
+        'subtitle': 'En iyi rap şarkıları',
+        'description': 'Hip-hop ve rap hitleri',
+        'type': 'playlist',
+        'difficulty': 'medium',
+        'language': 'en',
+        'playlistSource': 'Spotify',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // ═══════════════════════════════════════════════════════════
+      // DÖNEMLER
+      // ═══════════════════════════════════════════════════════════
+
+      // 90'lar Pop
+      {
+        'id': 'era_90s_pop',
+        'categoryId': 'eras',
+        'title': '90\'lar Pop',
+        'subtitle': '1990-1999 Türk Pop',
+        'description': '90\'ların unutulmaz pop şarkıları',
+        'type': 'era',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'eraStart': 1990,
+        'eraEnd': 1999,
+        'genre': 'pop',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 20,
+        'priceUsd': 0.99,
+        'isFree': true, // Ücretsiz
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // 2000'ler Rock
+      {
+        'id': 'era_2000s_rock',
+        'categoryId': 'eras',
+        'title': '2000\'ler Rock',
+        'subtitle': '2000-2009 Türk Rock',
+        'description': '2000\'lerin rock klasikleri',
+        'type': 'era',
+        'difficulty': 'medium',
+        'language': 'tr',
+        'eraStart': 2000,
+        'eraEnd': 2009,
+        'genre': 'rock',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 20,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // 2000'ler R&B
+      {
+        'id': 'era_2000s_rnb',
+        'categoryId': 'eras',
+        'title': '2000\'ler R&B',
+        'subtitle': '2000-2009 R&B hitleri',
+        'description': 'R&B\'nin altın çağı',
+        'type': 'era',
+        'difficulty': 'hard',
+        'language': 'en',
+        'eraStart': 2000,
+        'eraEnd': 2009,
+        'genre': 'rnb',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
+        'priceUsd': 0.99,
+        'isFree': false,
+        'isActive': true,
+        'playCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+
+      // 2010'lar Indie / Alternative
+      {
+        'id': 'era_2010s_indie',
+        'categoryId': 'eras',
+        'title': '2010\'lar Indie',
+        'subtitle': '2010-2019 Indie & Alternative',
+        'description': 'Indie ve alternatif müzik',
+        'type': 'era',
+        'difficulty': 'hard',
+        'language': 'tr',
+        'eraStart': 2010,
+        'eraEnd': 2019,
+        'genre': 'indie',
+        'coverImageUrl': null,
+        'songIds': [],
+        'totalSongs': 15,
         'priceUsd': 0.99,
         'isFree': false,
         'isActive': true,
@@ -347,118 +549,107 @@ class FirestoreSeedService {
       },
     ];
 
+    final batch = _db.batch();
+
     for (final challenge in challenges) {
-      final id = challenge['id'] as String;
-      await _db.collection('challenges').doc(id).set(challenge);
-      print('  ✓ Challenge eklendi: $id');
+      final docRef = _db.collection('challenges').doc(challenge['id'] as String);
+      batch.set(docRef, challenge);
     }
+
+    await batch.commit();
+    print('  ✓ ${challenges.length} challenge eklendi');
   }
 
-  /// Şarkıları ekle
-  Future<void> seedSongs() async {
-    print('🎵 Şarkılar ekleniyor...');
+  /// Örnek şarkıları ekle (Duman için)
+  Future<void> seedSampleSongs() async {
+    print('🎵 Örnek şarkılar ekleniyor...');
 
     final songs = [
+      // === DUMAN ===
+      {'id': 'duman_1', 'challengeId': 'duman', 'title': 'Senden Daha Güzel', 'artist': 'Duman', 'keywords': ['senden', 'güzel', 'daha'], 'year': 2002},
+      {'id': 'duman_2', 'challengeId': 'duman', 'title': 'Bu Akşam', 'artist': 'Duman', 'keywords': ['akşam', 'bu'], 'year': 1999},
+      {'id': 'duman_3', 'challengeId': 'duman', 'title': 'Herşeyi Yak', 'artist': 'Duman', 'keywords': ['yak', 'herşeyi', 'her şeyi'], 'year': 2002},
+      {'id': 'duman_4', 'challengeId': 'duman', 'title': 'Köprüaltı', 'artist': 'Duman', 'keywords': ['köprü', 'altı', 'köprüaltı'], 'year': 2006},
+      {'id': 'duman_5', 'challengeId': 'duman', 'title': 'Melankoli', 'artist': 'Duman', 'keywords': ['melankoli'], 'year': 2006},
+      {'id': 'duman_6', 'challengeId': 'duman', 'title': 'Aman Aman', 'artist': 'Duman', 'keywords': ['aman'], 'year': 2013},
+      {'id': 'duman_7', 'challengeId': 'duman', 'title': 'Haberin Yok Ölüyorum', 'artist': 'Duman', 'keywords': ['haber', 'ölüyorum', 'yok'], 'year': 2004},
+      {'id': 'duman_8', 'challengeId': 'duman', 'title': 'Dibine Kadar', 'artist': 'Duman', 'keywords': ['dip', 'dibine', 'kadar'], 'year': 2004},
+      {'id': 'duman_9', 'challengeId': 'duman', 'title': 'Eyvallah', 'artist': 'Duman', 'keywords': ['eyvallah'], 'year': 2009},
+      {'id': 'duman_10', 'challengeId': 'duman', 'title': 'Yürek', 'artist': 'Duman', 'keywords': ['yürek'], 'year': 2002},
+
       // === TARKAN ===
-      {'id': 'tarkan_1', 'title': 'Şımarık', 'artist': 'Tarkan', 'keywords': ['simarik', 'kiss kiss'], 'year': 1997},
-      {'id': 'tarkan_2', 'title': 'Dudu', 'artist': 'Tarkan', 'keywords': ['dudu'], 'year': 2003},
-      {'id': 'tarkan_3', 'title': 'Kuzu Kuzu', 'artist': 'Tarkan', 'keywords': ['kuzu'], 'year': 2001},
-      {'id': 'tarkan_4', 'title': 'Verme', 'artist': 'Tarkan', 'keywords': ['verme'], 'year': 2017},
-      {'id': 'tarkan_5', 'title': 'Öp', 'artist': 'Tarkan', 'keywords': ['op'], 'year': 2008},
+      {'id': 'tarkan_1', 'challengeId': 'tarkan', 'title': 'Şımarık', 'artist': 'Tarkan', 'keywords': ['şımarık', 'simarik', 'kiss kiss'], 'year': 1997},
+      {'id': 'tarkan_2', 'challengeId': 'tarkan', 'title': 'Dudu', 'artist': 'Tarkan', 'keywords': ['dudu'], 'year': 2003},
+      {'id': 'tarkan_3', 'challengeId': 'tarkan', 'title': 'Kuzu Kuzu', 'artist': 'Tarkan', 'keywords': ['kuzu'], 'year': 2001},
+      {'id': 'tarkan_4', 'challengeId': 'tarkan', 'title': 'Hüp', 'artist': 'Tarkan', 'keywords': ['hüp', 'hup'], 'year': 2006},
+      {'id': 'tarkan_5', 'challengeId': 'tarkan', 'title': 'Dön Bebeğim', 'artist': 'Tarkan', 'keywords': ['dön', 'bebek', 'bebeğim'], 'year': 2017},
+      {'id': 'tarkan_6', 'challengeId': 'tarkan', 'title': 'Verme', 'artist': 'Tarkan', 'keywords': ['verme'], 'year': 2010},
+      {'id': 'tarkan_7', 'challengeId': 'tarkan', 'title': 'Adımı Kalbine Yaz', 'artist': 'Tarkan', 'keywords': ['adımı', 'kalp', 'kalbine', 'yaz'], 'year': 2010},
+      {'id': 'tarkan_8', 'challengeId': 'tarkan', 'title': 'Hatasız Kul Olmaz', 'artist': 'Tarkan', 'keywords': ['hatasız', 'kul', 'olmaz'], 'year': 1994},
 
       // === SEZEN AKSU ===
-      {'id': 'sezen_1', 'title': 'Gülümse', 'artist': 'Sezen Aksu', 'keywords': ['gulumse'], 'year': 1991},
-      {'id': 'sezen_2', 'title': 'Hadi Bakalım', 'artist': 'Sezen Aksu', 'keywords': ['hadi bakalim'], 'year': 2006},
-      {'id': 'sezen_3', 'title': 'Firuze', 'artist': 'Sezen Aksu', 'keywords': ['firuze'], 'year': 1982},
-      {'id': 'sezen_4', 'title': 'Kaybolan Yıllar', 'artist': 'Sezen Aksu', 'keywords': ['kaybolan yillar'], 'year': 1984},
-      {'id': 'sezen_5', 'title': 'Küçüğüm', 'artist': 'Sezen Aksu', 'keywords': ['kucugum'], 'year': 1993},
+      {'id': 'sezen_1', 'challengeId': 'sezen_aksu', 'title': 'Gülümse', 'artist': 'Sezen Aksu', 'keywords': ['gülümse', 'gulum'], 'year': 1991},
+      {'id': 'sezen_2', 'challengeId': 'sezen_aksu', 'title': 'Hadi Bakalım', 'artist': 'Sezen Aksu', 'keywords': ['hadi', 'bakalım'], 'year': 2017},
+      {'id': 'sezen_3', 'challengeId': 'sezen_aksu', 'title': 'Firuze', 'artist': 'Sezen Aksu', 'keywords': ['firuze'], 'year': 1982},
+      {'id': 'sezen_4', 'challengeId': 'sezen_aksu', 'title': 'Şarkı Söylemek Lazım', 'artist': 'Sezen Aksu', 'keywords': ['şarkı', 'söylemek', 'lazım'], 'year': 2006},
+      {'id': 'sezen_5', 'challengeId': 'sezen_aksu', 'title': 'Keskin Bıçak', 'artist': 'Sezen Aksu', 'keywords': ['keskin', 'bıçak'], 'year': 2011},
 
-      // === AJDA PEKKAN ===
-      {'id': 'ajda_1', 'title': 'Oyalama Beni', 'artist': 'Ajda Pekkan', 'keywords': ['oyalama'], 'year': 1976},
-      {'id': 'ajda_2', 'title': 'Bambaşka Biri', 'artist': 'Ajda Pekkan', 'keywords': ['bambaska'], 'year': 1978},
-      {'id': 'ajda_3', 'title': 'Süperstar', 'artist': 'Ajda Pekkan', 'keywords': ['superstar'], 'year': 1977},
-      {'id': 'ajda_4', 'title': 'Arada Sırada', 'artist': 'Ajda Pekkan', 'keywords': ['arada sirada'], 'year': 2012},
-      {'id': 'ajda_5', 'title': 'Yakar Geçerim', 'artist': 'Ajda Pekkan', 'keywords': ['yakar gecerim'], 'year': 1996},
-
-      // === SERTAB ERENER ===
-      {'id': 'sertab_1', 'title': 'Everyway That I Can', 'artist': 'Sertab Erener', 'keywords': ['everyway'], 'year': 2003},
-      {'id': 'sertab_2', 'title': 'Aşk', 'artist': 'Sertab Erener', 'keywords': ['ask'], 'year': 1997},
-      {'id': 'sertab_3', 'title': 'Olsun', 'artist': 'Sertab Erener', 'keywords': ['olsun'], 'year': 1999},
-      {'id': 'sertab_4', 'title': 'Lal', 'artist': 'Sertab Erener', 'keywords': ['lal'], 'year': 2000},
-      {'id': 'sertab_5', 'title': 'Açık Adres', 'artist': 'Sertab Erener', 'keywords': ['acik adres'], 'year': 1999},
-
-      // === HADISE ===
-      {'id': 'hadise_1', 'title': 'Düm Tek Tek', 'artist': 'Hadise', 'keywords': ['dum tek'], 'year': 2009},
-      {'id': 'hadise_2', 'title': 'Nerdesin Aşkım', 'artist': 'Hadise', 'keywords': ['nerdesin askim'], 'year': 2008},
-      {'id': 'hadise_3', 'title': 'Farkımız Var', 'artist': 'Hadise', 'keywords': ['farkimiz var'], 'year': 2006},
-      {'id': 'hadise_4', 'title': 'Prenses', 'artist': 'Hadise', 'keywords': ['prenses'], 'year': 2014},
-      {'id': 'hadise_5', 'title': 'Şampiyon', 'artist': 'Hadise', 'keywords': ['sampiyon'], 'year': 2013},
-
-      // === DUMAN ===
-      {'id': 'duman_1', 'title': 'Senden Daha Güzel', 'artist': 'Duman', 'keywords': ['senden daha guzel'], 'year': 2002},
-      {'id': 'duman_2', 'title': 'Bu Akşam', 'artist': 'Duman', 'keywords': ['bu aksam'], 'year': 2004},
-      {'id': 'duman_3', 'title': 'Herşeyi Yak', 'artist': 'Duman', 'keywords': ['herseyi yak'], 'year': 2004},
-      {'id': 'duman_4', 'title': 'Köprüaltı', 'artist': 'Duman', 'keywords': ['koprualti'], 'year': 1999},
-      {'id': 'duman_5', 'title': 'Helal Olsun', 'artist': 'Duman', 'keywords': ['helal olsun'], 'year': 2013},
-
-      // === MOR VE ÖTESİ ===
-      {'id': 'mvo_1', 'title': 'Cambaz', 'artist': 'Mor ve Ötesi', 'keywords': ['cambaz'], 'year': 2006},
-      {'id': 'mvo_2', 'title': 'Bir Derdim Var', 'artist': 'Mor ve Ötesi', 'keywords': ['bir derdim var'], 'year': 2008},
-      {'id': 'mvo_3', 'title': 'Yalnız Şarkı', 'artist': 'Mor ve Ötesi', 'keywords': ['yalniz sarki'], 'year': 2004},
-      {'id': 'mvo_4', 'title': 'Yorma Kendini', 'artist': 'Mor ve Ötesi', 'keywords': ['yorma kendini'], 'year': 2011},
-      {'id': 'mvo_5', 'title': 'Dünya Yalan Söylüyor', 'artist': 'Mor ve Ötesi', 'keywords': ['dunya yalan'], 'year': 2004},
-
-      // === TEOMAN ===
-      {'id': 'teoman_1', 'title': 'İstanbul\'da Sonbahar', 'artist': 'Teoman', 'keywords': ['istanbul sonbahar'], 'year': 1996},
-      {'id': 'teoman_2', 'title': 'Paramparça', 'artist': 'Teoman', 'keywords': ['paramparca'], 'year': 2000},
-      {'id': 'teoman_3', 'title': 'Aşk Kırıntıları', 'artist': 'Teoman', 'keywords': ['ask kirintilari'], 'year': 1998},
-      {'id': 'teoman_4', 'title': 'Renkli Rüyalar Oteli', 'artist': 'Teoman', 'keywords': ['renkli ruyalar'], 'year': 2003},
-      {'id': 'teoman_5', 'title': 'O Sen Misin', 'artist': 'Teoman', 'keywords': ['o sen misin'], 'year': 2016},
-
-      // === MANGA ===
-      {'id': 'manga_1', 'title': 'We Could Be The Same', 'artist': 'maNga', 'keywords': ['we could be'], 'year': 2010},
-      {'id': 'manga_2', 'title': 'Dünyanın Sonuna Doğmuşum', 'artist': 'maNga', 'keywords': ['dunyanin sonuna'], 'year': 2004},
-      {'id': 'manga_3', 'title': 'Beni Benimle Bırak', 'artist': 'maNga', 'keywords': ['beni benimle'], 'year': 2009},
-      {'id': 'manga_4', 'title': 'Cevapsız Sorular', 'artist': 'maNga', 'keywords': ['cevapsiz sorular'], 'year': 2007},
-      {'id': 'manga_5', 'title': 'Fly To Stay Alive', 'artist': 'maNga', 'keywords': ['fly to stay'], 'year': 2009},
-
-      // === TAYLOR SWIFT ===
-      {'id': 'taylor_1', 'title': 'Shake It Off', 'artist': 'Taylor Swift', 'keywords': ['shake it off'], 'year': 2014},
-      {'id': 'taylor_2', 'title': 'Love Story', 'artist': 'Taylor Swift', 'keywords': ['love story', 'romeo'], 'year': 2008},
-      {'id': 'taylor_3', 'title': 'Blank Space', 'artist': 'Taylor Swift', 'keywords': ['blank space'], 'year': 2014},
-      {'id': 'taylor_4', 'title': 'Anti-Hero', 'artist': 'Taylor Swift', 'keywords': ['anti hero'], 'year': 2022},
-      {'id': 'taylor_5', 'title': 'Bad Blood', 'artist': 'Taylor Swift', 'keywords': ['bad blood'], 'year': 2014},
-
-      // === ED SHEERAN ===
-      {'id': 'ed_1', 'title': 'Shape of You', 'artist': 'Ed Sheeran', 'keywords': ['shape of you'], 'year': 2017},
-      {'id': 'ed_2', 'title': 'Perfect', 'artist': 'Ed Sheeran', 'keywords': ['perfect'], 'year': 2017},
-      {'id': 'ed_3', 'title': 'Thinking Out Loud', 'artist': 'Ed Sheeran', 'keywords': ['thinking out loud'], 'year': 2014},
-      {'id': 'ed_4', 'title': 'Photograph', 'artist': 'Ed Sheeran', 'keywords': ['photograph'], 'year': 2014},
-      {'id': 'ed_5', 'title': 'Castle on the Hill', 'artist': 'Ed Sheeran', 'keywords': ['castle on the hill'], 'year': 2017},
-
-      // === ADELE ===
-      {'id': 'adele_1', 'title': 'Hello', 'artist': 'Adele', 'keywords': ['hello'], 'year': 2015},
-      {'id': 'adele_2', 'title': 'Rolling in the Deep', 'artist': 'Adele', 'keywords': ['rolling in the deep'], 'year': 2010},
-      {'id': 'adele_3', 'title': 'Someone Like You', 'artist': 'Adele', 'keywords': ['someone like you'], 'year': 2011},
-      {'id': 'adele_4', 'title': 'Set Fire to the Rain', 'artist': 'Adele', 'keywords': ['set fire'], 'year': 2011},
-      {'id': 'adele_5', 'title': 'Easy On Me', 'artist': 'Adele', 'keywords': ['easy on me'], 'year': 2021},
-
-      // === BRUNO MARS ===
-      {'id': 'bruno_1', 'title': 'Uptown Funk', 'artist': 'Bruno Mars', 'keywords': ['uptown funk'], 'year': 2014},
-      {'id': 'bruno_2', 'title': 'Just The Way You Are', 'artist': 'Bruno Mars', 'keywords': ['just the way'], 'year': 2010},
-      {'id': 'bruno_3', 'title': '24K Magic', 'artist': 'Bruno Mars', 'keywords': ['24k magic'], 'year': 2016},
-      {'id': 'bruno_4', 'title': 'Grenade', 'artist': 'Bruno Mars', 'keywords': ['grenade'], 'year': 2010},
-      {'id': 'bruno_5', 'title': 'Locked Out of Heaven', 'artist': 'Bruno Mars', 'keywords': ['locked out'], 'year': 2012},
+      // === CEZA ===
+      {'id': 'ceza_1', 'challengeId': 'ceza', 'title': 'Holocaust', 'artist': 'Ceza', 'keywords': ['holocaust'], 'year': 2004},
+      {'id': 'ceza_2', 'challengeId': 'ceza', 'title': 'Suspus', 'artist': 'Ceza', 'keywords': ['suspus', 'sus'], 'year': 2015},
+      {'id': 'ceza_3', 'challengeId': 'ceza', 'title': 'Neyim Var Ki', 'artist': 'Ceza', 'keywords': ['neyim', 'var'], 'year': 2009},
+      {'id': 'ceza_4', 'challengeId': 'ceza', 'title': 'Yerli Plaka', 'artist': 'Ceza', 'keywords': ['yerli', 'plaka'], 'year': 2009},
+      {'id': 'ceza_5', 'challengeId': 'ceza', 'title': 'Türk Marşı', 'artist': 'Ceza', 'keywords': ['türk', 'marşı', 'marş'], 'year': 2015},
     ];
 
+    final batch = _db.batch();
+
     for (final song in songs) {
-      final id = song['id'] as String;
-      await _db.collection('songs').doc(id).set(song);
+      final docRef = _db.collection('songs').doc(song['id'] as String);
+      batch.set(docRef, {
+        ...song,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     }
+
+    await batch.commit();
     print('  ✓ ${songs.length} şarkı eklendi');
+
+    // Challenge'ların songIds'lerini güncelle
+    await _updateChallengeSongIds();
   }
 
-  /// Verileri temizle (dikkatli kullan!)
+  /// Challenge'ların songIds alanlarını güncelle
+  Future<void> _updateChallengeSongIds() async {
+    final songsSnapshot = await _db.collection('songs').get();
+    
+    // ChallengeId'ye göre grupla
+    final Map<String, List<String>> challengeSongs = {};
+    
+    for (final doc in songsSnapshot.docs) {
+      final challengeId = doc.data()['challengeId'] as String?;
+      if (challengeId != null) {
+        challengeSongs.putIfAbsent(challengeId, () => []);
+        challengeSongs[challengeId]!.add(doc.id);
+      }
+    }
+
+    // Her challenge'ı güncelle
+    final batch = _db.batch();
+    
+    for (final entry in challengeSongs.entries) {
+      final docRef = _db.collection('challenges').doc(entry.key);
+      batch.update(docRef, {
+        'songIds': entry.value,
+        'totalSongs': entry.value.length,
+      });
+    }
+
+    await batch.commit();
+    print('  ✓ Challenge songIds güncellendi');
+  }
+
+  /// Tüm verileri sil (test için)
   Future<void> clearAll() async {
     print('🗑️ Veriler siliniyor...');
 
@@ -480,6 +671,6 @@ class FirestoreSeedService {
       await doc.reference.delete();
     }
 
-    print('✅ Tüm veriler silindi');
+    print('  ✓ Tüm veriler silindi');
   }
 }

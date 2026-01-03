@@ -24,18 +24,33 @@ class ProfileScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                // Üst bar
+                // Üst bar - Geri + Home + Ayarlar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: Row(
                     children: [
+                      // Geri butonu
                       IconButton(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(
                           Icons.arrow_back_ios_new,
                           color: Color(0xFF394272),
                         ),
+                        tooltip: 'Geri',
                       ),
+                      
+                      // Home butonu
+                      IconButton(
+                        onPressed: () {
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                        },
+                        icon: const Icon(
+                          Icons.home_rounded,
+                          color: Color(0xFF394272),
+                        ),
+                        tooltip: 'Ana Menü',
+                      ),
+                      
                       const Expanded(
                         child: Text(
                           'Profilim',
@@ -47,72 +62,126 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      
                       // Ayarlar butonu
                       IconButton(
-                        onPressed: () {
-                          _showSettingsSheet(context);
-                        },
+                        onPressed: () => _showSettingsSheet(context),
                         icon: const Icon(
-                          Icons.settings,
+                          Icons.settings_outlined,
                           color: Color(0xFF394272),
                         ),
+                        tooltip: 'Ayarlar',
                       ),
+                      
+                      // Denge için boşluk
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
 
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
                       children: [
                         const SizedBox(height: 20),
 
-                        // Profil kartı
-                        _ProfileCard(user: user),
+                        // Avatar
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 60,
+                              backgroundColor: const Color(0xFFCAB7FF),
+                              backgroundImage: user?.photoUrl != null
+                                  ? NetworkImage(user!.photoUrl!)
+                                  : null,
+                              child: user?.photoUrl == null
+                                  ? const Icon(
+                                      Icons.person,
+                                      size: 60,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: () => _showEditProfileDialog(context),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF394272),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
 
-                        // İstatistikler
-                        _StatsCard(user: user),
+                        // İsim
+                        Text(
+                          user?.displayName ?? 'Oyuncu',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF394272),
+                          ),
+                        ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 4),
 
-                        // Premium durumu
-                        _PremiumCard(user: user),
+                        // Email
+                        Text(
+                          user?.email ?? '',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF6C6FA4),
+                          ),
+                        ),
 
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 32),
 
-                        // Çıkış butonu
+                        // İstatistik kartları
+                        _buildStatsCard(user),
+
+                        const SizedBox(height: 24),
+
+                        // Başarılar
+                        _buildAchievementsSection(),
+
+                        const SizedBox(height: 24),
+
+                        // Çıkış yap butonu
                         SizedBox(
                           width: double.infinity,
                           height: 52,
                           child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final confirm = await _showLogoutConfirmation(context);
-                              if (confirm == true) {
-                                await authProvider.signOut();
-                                if (context.mounted) {
-                                  Navigator.of(context).popUntil((route) => route.isFirst);
-                                }
-                              }
-                            },
-                            icon: const Icon(
-                              Icons.logout,
-                              color: Colors.red,
-                            ),
+                            onPressed: () => _handleLogout(context),
+                            icon: const Icon(Icons.logout, color: Colors.red),
                             label: const Text(
                               'Çıkış Yap',
                               style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
                                 color: Colors.red,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: Colors.red),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                           ),
@@ -131,15 +200,200 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Future<bool?> _showLogoutConfirmation(BuildContext context) {
+  Widget _buildStatsCard(UserModel? user) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha:0.95),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha:0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'İstatistikler',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF394272),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.emoji_events,
+                  label: 'En Yüksek Skor',
+                  value: '${user?.highScore ?? 0}',
+                  color: const Color(0xFFFFD700),
+                ),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.games,
+                  label: 'Toplam Oyun',
+                  value: '${user?.gamesPlayed ?? 0}',
+                  color: const Color(0xFFCAB7FF),
+                ),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.check_circle,
+                  label: 'Doğru Tahmin',
+                  value: '${user?.correctGuesses ?? 0}',
+                  color: const Color(0xFF4CAF50),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 28),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF394272),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF6C6FA4),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAchievementsSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha:0.95),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha:0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Başarılar',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF394272),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildAchievementBadge('🎵', 'İlk Oyun', true),
+              _buildAchievementBadge('🔥', '5 Seri', false),
+              _buildAchievementBadge('⚡', '10 Seri', false),
+              _buildAchievementBadge('🏆', '100 Puan', false),
+              _buildAchievementBadge('🎯','Mükemmel', false),
+              _buildAchievementBadge('👑', 'Şampiyon', false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementBadge(String emoji, String label, bool unlocked) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: unlocked
+            ? const Color(0xFFCAB7FF).withValues(alpha:0.2)
+            : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: unlocked ? const Color(0xFFCAB7FF) : Colors.grey.shade300,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            emoji,
+            style: TextStyle(
+              fontSize: 20,
+              color: unlocked ? null : Colors.grey,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: unlocked ? const Color(0xFF394272) : Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final confirmed = await _showLogoutDialog(context);
+    if (confirmed == true) {
+      await context.read<AuthProvider>().signOut();
+      if (context.mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      }
+    }
+  }
+
+  Future<bool?> _showLogoutDialog(BuildContext context) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Çıkış Yap',
+          style: TextStyle(color: Color(0xFF394272)),
         ),
-        title: const Text('Çıkış Yap'),
-        content: const Text('Hesabından çıkış yapmak istediğine emin misin?'),
+        content: const Text(
+          'Hesabından çıkış yapmak istediğine emin misin?',
+          style: TextStyle(color: Color(0xFF6C6FA4)),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -201,7 +455,7 @@ class ProfileScreen extends StatelessWidget {
               title: const Text('Gizlilik Politikası'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Gizlilik politikası sayfasına git
+                _showPlaceholderDialog(context, 'Gizlilik Politikası');
               },
             ),
             ListTile(
@@ -209,12 +463,36 @@ class ProfileScreen extends StatelessWidget {
               title: const Text('Kullanım Koşulları'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Kullanım koşulları sayfasına git
+                _showPlaceholderDialog(context, 'Kullanım Koşulları');
               },
             ),
             const SizedBox(height: 16),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showPlaceholderDialog(BuildContext context, String title) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          title,
+          style: const TextStyle(color: Color(0xFF394272)),
+        ),
+        content: Text(
+          '$title içeriği burada yer alacak.\n\n'
+          'Bu içerik uygulama yayınlanmadan önce güncellenecektir.',
+          style: const TextStyle(color: Color(0xFF6C6FA4)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tamam'),
+          ),
+        ],
       ),
     );
   }
@@ -226,14 +504,15 @@ class ProfileScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Profili Düzenle',
+          style: TextStyle(color: Color(0xFF394272)),
         ),
-        title: const Text('Profili Düzenle'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
-            labelText: 'Kullanıcı Adı',
+            labelText: 'Ad Soyad',
             border: OutlineInputBorder(),
           ),
         ),
@@ -244,13 +523,20 @@ class ProfileScreen extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () async {
-              final newName = controller.text.trim();
-              if (newName.isNotEmpty) {
+              if (controller.text.trim().isNotEmpty) {
                 await context.read<AuthProvider>().updateProfile(
-                  displayName: newName,
-                );
+                      displayName: controller.text.trim(),
+                    );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Profil güncellendi'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
               }
-              if (context.mounted) Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFCAB7FF),
@@ -266,396 +552,33 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _showLanguageDialog(BuildContext context) {
-    final user = context.read<AuthProvider>().user;
-    final currentLang = user?.preferredLanguage ?? 'tr';
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Dil Ayarları',
+          style: TextStyle(color: Color(0xFF394272)),
         ),
-        title: const Text('Dil Seçin'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Text('🇹🇷', style: TextStyle(fontSize: 24)),
               title: const Text('Türkçe'),
-              trailing: currentLang == 'tr'
-                  ? const Icon(Icons.check, color: Color(0xFFCAB7FF))
-                  : null,
-              onTap: () async {
-                await context.read<AuthProvider>().updateProfile(
-                  preferredLanguage: 'tr',
-                );
-                if (context.mounted) Navigator.pop(context);
-              },
+              trailing: const Icon(Icons.check, color: Color(0xFFCAB7FF)),
+              onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Text('🇬🇧', style: TextStyle(fontSize: 24)),
               title: const Text('English'),
-              trailing: currentLang == 'en'
-                  ? const Icon(Icons.check, color: Color(0xFFCAB7FF))
-                  : null,
-              onTap: () async {
-                await context.read<AuthProvider>().updateProfile(
-                  preferredLanguage: 'en',
-                );
-                if (context.mounted) Navigator.pop(context);
-              },
+              subtitle: const Text('Yakında'),
+              enabled: false,
+              onTap: null,
             ),
           ],
         ),
       ),
     );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  final UserModel? user;
-
-  const _ProfileCard({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        // ignore: deprecated_member_use
-        color: Colors.white.withValues(alpha:0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Avatar
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: const Color(0xFFCAB7FF),
-            backgroundImage: user?.photoUrl != null
-                ? NetworkImage(user!.photoUrl!)
-                : null,
-            child: user?.photoUrl == null
-                ? Text(
-                    (user?.displayName ?? 'U').substring(0, 1).toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF394272),
-                    ),
-                  )
-                : null,
-          ),
-
-          const SizedBox(height: 16),
-
-          // İsim
-          Text(
-            user?.displayName ?? 'Oyuncu',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF394272),
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          // Email
-          Text(
-            user?.email ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6C6FA4),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Üyelik tarihi
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.calendar_today,
-                size: 14,
-                color: Color(0xFF6C6FA4),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'Üyelik: ${_formatDate(user?.createdAt)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF6C6FA4),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return '-';
-    return '${date.day}.${date.month}.${date.year}';
-  }
-}
-
-class _StatsCard extends StatelessWidget {
-  final UserModel? user;
-
-  const _StatsCard({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'İstatistikler',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF394272),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: _StatItem(
-                  icon: Icons.music_note,
-                  value: '${user?.totalSongsFound ?? 0}',
-                  label: 'Şarkı Bulundu',
-                ),
-              ),
-              Expanded(
-                child: _StatItem(
-                  icon: Icons.gamepad,
-                  value: '${user?.totalGamesPlayed ?? 0}',
-                  label: 'Oyun',
-                ),
-              ),
-              Expanded(
-                child: _StatItem(
-                  icon: Icons.timer,
-                  value: _formatTime(user?.totalTimePlayed ?? 0),
-                  label: 'Toplam Süre',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTime(int seconds) {
-    if (seconds < 60) return '${seconds}s';
-    if (seconds < 3600) return '${seconds ~/ 60}dk';
-    return '${seconds ~/ 3600}sa';
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String label;
-
-  const _StatItem({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: const Color(0xFFCAB7FF).withValues(alpha:0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            color: const Color(0xFF6C6FA4),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF394272),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF6C6FA4),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PremiumCard extends StatelessWidget {
-  final UserModel? user;
-
-  const _PremiumCard({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final isPremium = user?.isActivePremium ?? false;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: isPremium
-            ? const LinearGradient(
-                colors: [Color(0xFFFFD891), Color(0xFFFFB958)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        color: isPremium ? null : Colors.white.withValues(alpha:0.95),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(
-                isPremium ? Icons.workspace_premium : Icons.star_border,
-                size: 32,
-                color: isPremium ? const Color(0xFF8C5A1F) : const Color(0xFF6C6FA4),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isPremium ? 'Premium Üye' : 'Ücretsiz Üyelik',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: isPremium
-                            ? const Color(0xFF8C5A1F)
-                            : const Color(0xFF394272),
-                      ),
-                    ),
-                    if (isPremium && user?.premiumExpiresAt != null)
-                      Text(
-                        'Bitiş: ${_formatDate(user!.premiumExpiresAt!)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF8C5A1F),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          if (!isPremium) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () {
-                  // TODO: Premium satın alma ekranına git
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFB958),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: const Text(
-                  'Premium\'a Geç',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF8C5A1F),
-                  ),
-                ),
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 12),
-
-          // Kalan kelime değiştirme hakkı (reklam ile kazanılan)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.swap_horiz,
-                size: 18,
-                color: Color(0xFF6C6FA4),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Ekstra Değiştirme Hakkı: ${user?.wordChangeCredits ?? 0}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isPremium
-                      ? const Color(0xFF8C5A1F)
-                      : const Color(0xFF6C6FA4),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}.${date.month}.${date.year}';
   }
 }

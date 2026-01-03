@@ -8,6 +8,9 @@ import '../../services/access_control_service.dart';
 import '../../services/pricing_service.dart';
 import 'challenge_game_screen.dart';
 
+/// Challenge oyun modu
+enum ChallengePlayMode { solo, friends }
+
 class ChallengeDetailScreen extends StatefulWidget {
   final ChallengeModel challenge;
 
@@ -103,41 +106,30 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(
-              width: 40,
-              height: 40,
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                color: Colors.white.withValues(alpha:0.9),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new,
+                size: 20,
                 color: Color(0xFF394272),
-                size: 18,
               ),
             ),
           ),
-
-          const Expanded(
-            child: Text(
-              'Challenge Detay',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF394272),
-              ),
-              textAlign: TextAlign.center,
+          const Spacer(),
+          // Challenge başlığı
+          Text(
+            widget.challenge.title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF394272),
             ),
           ),
-
-          // Boşluk için
-          const SizedBox(width: 40),
+          const Spacer(),
+          const SizedBox(width: 36), // Denge için
         ],
       ),
     );
@@ -145,19 +137,19 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
 
   Widget _buildChallengeCard(AccessResult access) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: access.hasAccess
               ? [const Color(0xFFCAB7FF), const Color(0xFFE0D6FF)]
-              : [const Color(0xFFFFD891), const Color(0xFFFFE4B5)],
+              : [const Color(0xFFE8E8E8), const Color(0xFFF5F5F5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha:0.1),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -165,103 +157,77 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
       ),
       child: Column(
         children: [
-          // Durum ikonu
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: access.hasAccess
-                  ? const Icon(
-                      Icons.play_circle_fill,
-                      size: 40,
-                      color: Color(0xFF394272),
-                    )
-                  : const Icon(
-                      Icons.lock,
-                      size: 36,
-                      color: Color(0xFF8C5A1F),
-                    ),
-            ),
+          // Emoji / İkon
+          Text(
+            widget.challenge.type == 'artist' ? '🎤' : '🎵',
+            style: const TextStyle(fontSize: 48),
           ),
-
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 12),
           // Başlık
           Text(
             widget.challenge.title,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF394272),
-            ),
             textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: access.hasAccess
+                  ? const Color(0xFF394272)
+                  : const Color(0xFF888888),
+            ),
           ),
-
           if (widget.challenge.subtitle != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               widget.challenge.subtitle!,
               style: TextStyle(
                 fontSize: 14,
-                color: const Color(0xFF394272).withValues(alpha: 0.7),
+                color: access.hasAccess
+                    ? const Color(0xFF6C6FA4)
+                    : const Color(0xFF999999),
               ),
-              textAlign: TextAlign.center,
             ),
           ],
-
-          const SizedBox(height: 16),
-
-          // Zorluk ve tür
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildTag(
-                widget.challenge.difficultyLabel,
-                _getDifficultyColor(widget.challenge.difficulty),
-              ),
-              const SizedBox(width: 8),
-              _buildTag(
-                widget.challenge.typeLabel,
-                const Color(0xFF6C6FA4),
-              ),
-            ],
+          const SizedBox(height: 12),
+          // Durum badge'i
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: access.hasAccess
+                  ? const Color(0xFF4CAF50).withValues(alpha:0.15)
+                  : const Color(0xFFFFB958).withValues(alpha:0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  access.hasAccess ? Icons.lock_open : Icons.lock,
+                  size: 14,
+                  color: access.hasAccess
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFFFFB958),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  access.hasAccess
+                      ? 'Erişim Var'
+                      : widget.challenge.isFree
+                          ? 'Ücretsiz'
+                          : 'Kilitli',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: access.hasAccess
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFFFB958),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildTag(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Color _getDifficultyColor(ChallengeDifficulty difficulty) {
-    switch (difficulty) {
-      case ChallengeDifficulty.easy:
-        return const Color(0xFF4CAF50);
-      case ChallengeDifficulty.medium:
-        return const Color(0xFFFF9800);
-      case ChallengeDifficulty.hard:
-        return const Color(0xFFF44336);
-    }
   }
 
   Widget _buildStatsRow() {
@@ -270,24 +236,24 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
         Expanded(
           child: _buildStatCard(
             icon: Icons.music_note,
-            value: '${widget.challenge.totalSongs}',
             label: 'Şarkı',
+            value: '${widget.challenge.totalSongs}',
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            icon: Icons.play_arrow,
-            value: '${widget.challenge.playCount}',
+            icon: Icons.speed,
+            label: 'Zorluk',
+            value: _getDifficultyText(widget.challenge.difficulty),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            icon: Icons.play_circle,
             label: 'Oynama',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.language,
-            value: widget.challenge.language.toUpperCase(),
-            label: 'Dil',
+            value: '${widget.challenge.playCount}',
           ),
         ),
       ],
@@ -296,17 +262,17 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
 
   Widget _buildStatCard({
     required IconData icon,
-    required String value,
     required String label,
+    required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        color: Colors.white.withValues(alpha:0.9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -319,8 +285,8 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
               color: Color(0xFF394272),
             ),
           ),
@@ -336,121 +302,68 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     );
   }
 
+  String _getDifficultyText(String difficulty) {
+    switch (difficulty) {
+      case 'easy':
+        return 'Kolay';
+      case 'medium':
+        return 'Orta';
+      case 'hard':
+        return 'Zor';
+      default:
+        return 'Orta';
+    }
+  }
+
   Widget _buildProgressSection(UserModel? user) {
-    if (user == null) return const SizedBox.shrink();
-
-    return StreamBuilder<ChallengeProgressModel?>(
-      stream: _challengeService.getChallengeProgress(user.uid, widget.challenge.id),
-      builder: (context, snapshot) {
-        final progress = snapshot.data;
-        final percent = progress?.progressPercent ?? 0;
-        final found = progress?.foundSongs ?? 0;
-        final total = widget.challenge.totalSongs;
-
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+    // TODO: Gerçek ilerleme verisi çekilecek
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha:0.9),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'İlerleme',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF394272),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'İlerleme',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF394272),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: percent / 100,
-                        backgroundColor: const Color(0xFFE0E0E0),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFFCAB7FF),
-                        ),
-                        minHeight: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    '${percent.toInt()}%',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF394272),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '$found / $total şarkı bulundu',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6C6FA4),
-                ),
-              ),
-              if (progress?.isCompleted == true) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle, color: Color(0xFF4CAF50), size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        'Tamamlandı!',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF4CAF50),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: 0.0, // TODO: Gerçek ilerleme
+              minHeight: 8,
+              backgroundColor: const Color(0xFFE0E0E0),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(Color(0xFFCAB7FF)),
+            ),
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          Text(
+            '0 / ${widget.challenge.totalSongs} şarkı bulundu',
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF6C6FA4),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildDescription() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.white.withValues(alpha:0.9),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,18 +371,18 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
           const Text(
             'Açıklama',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               color: Color(0xFF394272),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             widget.challenge.description!,
             style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF6C6FA4),
-              height: 1.5,
+              height: 1.4,
             ),
           ),
         ],
@@ -479,27 +392,22 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
 
   Widget _buildSongPreview() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.white.withValues(alpha:0.9),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              const Icon(Icons.queue_music, color: Color(0xFF6C6FA4)),
+              const SizedBox(width: 8),
               const Text(
-                'Şarkılar',
+                'Şarkı Listesi',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF394272),
                 ),
@@ -508,82 +416,19 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
               Text(
                 '${widget.challenge.totalSongs} şarkı',
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   color: Color(0xFF6C6FA4),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Önizleme - ilk 3 şarkı (bulanık)
-          ...List.generate(3, (index) {
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5FF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCAB7FF).withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF6C6FA4),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE0E0E0),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          height: 10,
-                          width: 100,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8E8E8),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.visibility_off,
-                    color: Color(0xFFCCCCCC),
-                    size: 18,
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              '+ ${widget.challenge.totalSongs - 3} şarkı daha...',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF6C6FA4),
-              ),
+          const SizedBox(height: 12),
+          const Text(
+            'Şarkıları görmek için challenge\'ı oyna!',
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF999999),
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
@@ -602,7 +447,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha:0.1),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -622,14 +467,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ChallengeGameScreen(challenge: widget.challenge),
-            ),
-          );
-        },
+        onPressed: () => _showPlayModeSheet(context, user),
         icon: const Icon(Icons.play_arrow, size: 28),
         label: const Text(
           'Oyna',
@@ -650,6 +488,19 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     );
   }
 
+  /// Oyun modu seçim bottom sheet
+  void _showPlayModeSheet(BuildContext context, UserModel? user) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PlayModeSheet(
+        challenge: widget.challenge,
+        user: user,
+      ),
+    );
+  }
+
   Widget _buildPurchaseButton(BuildContext context, UserModel? user) {
     final price = widget.challenge.isFree ? 0 : widget.challenge.priceUsd;
 
@@ -661,7 +512,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
             'Bu challenge\'ı açmak için satın al',
             style: TextStyle(
               fontSize: 13,
-              color: const Color(0xFF394272).withValues(alpha: 0.7),
+              color: const Color(0xFF394272).withValues(alpha:0.7),
             ),
           ),
           const SizedBox(height: 12),
@@ -705,7 +556,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
         if (!widget.challenge.isFree)
           GestureDetector(
             onTap: () {
-              // Premium ekranına git
+              // TODO: Premium ekranına git
             },
             child: RichText(
               text: TextSpan(
@@ -714,7 +565,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                   TextSpan(
                     text: 'veya ',
                     style: TextStyle(
-                      color: const Color(0xFF394272).withValues(alpha: 0.7),
+                      color: const Color(0xFF394272).withValues(alpha:0.7),
                     ),
                   ),
                   const TextSpan(
@@ -727,7 +578,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
                   TextSpan(
                     text: ' ile tümüne eriş',
                     style: TextStyle(
-                      color: const Color(0xFF394272).withValues(alpha: 0.7),
+                      color: const Color(0xFF394272).withValues(alpha:0.7),
                     ),
                   ),
                 ],
@@ -742,7 +593,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     setState(() => _isPurchasing = true);
 
     try {
-      // Gerçek satın alma işlemi
+      // TODO: Gerçek satın alma işlemi
       await Future.delayed(const Duration(seconds: 2));
 
       if (mounted) {
@@ -757,6 +608,283 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
       if (mounted) {
         setState(() => _isPurchasing = false);
       }
+    }
+  }
+}
+
+/// Oyun modu seçim bottom sheet
+class _PlayModeSheet extends StatefulWidget {
+  final ChallengeModel challenge;
+  final UserModel? user;
+
+  const _PlayModeSheet({
+    required this.challenge,
+    required this.user,
+  });
+
+  @override
+  State<_PlayModeSheet> createState() => _PlayModeSheetState();
+}
+
+class _PlayModeSheetState extends State<_PlayModeSheet> {
+  ChallengePlayMode _selectedMode = ChallengePlayMode.solo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Başlık
+              const Text(
+                'Nasıl Oynamak İstersin?',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF394272),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                widget.challenge.title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF6C6FA4),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Mod seçenekleri
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildModeCard(
+                      mode: ChallengePlayMode.solo,
+                      icon: Icons.person,
+                      title: 'Tek Kişilik',
+                      subtitle: 'Kendi başına oyna',
+                      isSelected: _selectedMode == ChallengePlayMode.solo,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildModeCard(
+                      mode: ChallengePlayMode.friends,
+                      icon: Icons.people,
+                      title: 'Arkadaşla',
+                      subtitle: 'Aynı cihazda yarış',
+                      isSelected: _selectedMode == ChallengePlayMode.friends,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Açıklama
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _selectedMode == ChallengePlayMode.solo
+                          ? Icons.timer
+                          : Icons.swap_horiz,
+                      color: const Color(0xFF6C6FA4),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _selectedMode == ChallengePlayMode.solo
+                            ? 'Tüm şarkıları bulmaya çalış. Süre tutulacak!'
+                            : 'Sırayla oynayın, en çok şarkıyı bulan kazanır!',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6C6FA4),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Başla butonu
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () => _startGame(context),
+                  icon: const Icon(Icons.play_arrow, size: 28),
+                  label: const Text(
+                    'Başla',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFCAB7FF),
+                    foregroundColor: const Color(0xFF394272),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 4,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // İptal
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'İptal',
+                  style: TextStyle(
+                    color: Color(0xFF6C6FA4),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeCard({
+    required ChallengePlayMode mode,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+  }) {
+    return GestureDetector(
+      onTap: () => setState(() => _selectedMode = mode),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFCAB7FF).withValues(alpha:0.15)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFCAB7FF)
+                : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFCAB7FF).withValues(alpha:0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFFCAB7FF)
+                    : const Color(0xFFF5F5FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 28,
+                color: isSelected
+                    ? Colors.white
+                    : const Color(0xFF6C6FA4),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isSelected
+                    ? const Color(0xFF394272)
+                    : const Color(0xFF6C6FA4),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: const Color(0xFF6C6FA4).withValues(alpha:0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _startGame(BuildContext context) {
+    Navigator.pop(context); // Sheet'i kapat
+
+    if (_selectedMode == ChallengePlayMode.solo) {
+      // Tek kişilik oyun
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChallengeGameScreen(
+            challenge: widget.challenge,
+            playMode: ChallengePlayMode.solo,
+          ),
+        ),
+      );
+    } else {
+      // Arkadaşla oyun
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChallengeGameScreen(
+            challenge: widget.challenge,
+            playMode: ChallengePlayMode.friends,
+          ),
+        ),
+      );
     }
   }
 }

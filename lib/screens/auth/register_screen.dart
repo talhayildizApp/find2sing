@@ -56,7 +56,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.of(context).pop(); // Login ekranına dön
+      // Doğrudan Ana Menü'ye git
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -110,27 +111,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Başlık
+                  // Yeni Motto
                   const Text(
-                    'Hesap Oluştur',
+                    'Müziği Hisset.\nTahmin Et. Kazan.',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF394272),
+                      height: 1.2,
                     ),
                   ),
 
                   const SizedBox(height: 8),
 
                   const Text(
-                    'Find2Sing ailesine katıl!',
+                    'Hemen hesap oluştur, yarışa başla!',
                     style: TextStyle(
                       fontSize: 16,
                       color: Color(0xFF6C6FA4),
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
                   // Form kartı
                   Container(
@@ -152,21 +155,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // İsim
+                          // Ad Soyad
                           TextFormField(
                             controller: _nameController,
-                            textInputAction: TextInputAction.next,
                             textCapitalization: TextCapitalization.words,
                             decoration: _inputDecoration(
-                              label: 'Kullanıcı Adı',
+                              label: 'Ad Soyad',
                               icon: Icons.person_outline,
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Kullanıcı adı gerekli';
-                              }
-                              if (value.length < 2) {
-                                return 'En az 2 karakter olmalı';
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Adınızı giriniz';
                               }
                               return null;
                             },
@@ -178,18 +177,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
                             decoration: _inputDecoration(
-                              label: 'Email',
+                              label: 'E-posta',
                               icon: Icons.email_outlined,
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Email gerekli';
+                                return 'E-posta giriniz';
                               }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                  .hasMatch(value)) {
-                                return 'Geçerli bir email girin';
+                              if (!value.contains('@')) {
+                                return 'Geçerli bir e-posta giriniz';
                               }
                               return null;
                             },
@@ -201,7 +198,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.next,
                             decoration: _inputDecoration(
                               label: 'Şifre',
                               icon: Icons.lock_outline,
@@ -221,10 +217,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Şifre gerekli';
+                                return 'Şifre giriniz';
                               }
                               if (value.length < 6) {
-                                return 'En az 6 karakter olmalı';
+                                return 'Şifre en az 6 karakter olmalı';
                               }
                               return null;
                             },
@@ -232,12 +228,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           const SizedBox(height: 16),
 
-                          // Şifre tekrar
+                          // Şifre Tekrar
                           TextFormField(
                             controller: _confirmPasswordController,
                             obscureText: _obscureConfirmPassword,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _handleRegister(),
                             decoration: _inputDecoration(
                               label: 'Şifre Tekrar',
                               icon: Icons.lock_outline,
@@ -257,9 +251,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Şifre tekrarı gerekli';
-                              }
                               if (value != _passwordController.text) {
                                 return 'Şifreler eşleşmiyor';
                               }
@@ -267,7 +258,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             },
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
 
                           // Kullanım koşulları
                           Row(
@@ -298,34 +289,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     });
                                   },
                                   child: RichText(
-                                    text: const TextSpan(
-                                      style: TextStyle(
+                                    text: TextSpan(
+                                      style: const TextStyle(
                                         fontSize: 13,
-                                        color: Color(0xFF394272),
+                                        color: Color(0xFF6C6FA4),
                                       ),
                                       children: [
-                                        TextSpan(text: 'Kayıt olarak '),
-                                        TextSpan(
-                                          text: 'Kullanım Koşulları',
-                                          style: TextStyle(
-                                            color: Color(0xFFCAB7FF),
-                                            fontWeight: FontWeight.w600,
-                                            decoration:
-                                                TextDecoration.underline,
+                                        const TextSpan(text: 'Kabul ediyorum: '),
+                                        WidgetSpan(
+                                          child: GestureDetector(
+                                            onTap: () => _showTerms(context),
+                                            child: const Text(
+                                              'Kullanım Koşulları',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFFCAB7FF),
+                                                fontWeight: FontWeight.w600,
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        TextSpan(text: ' ve '),
-                                        TextSpan(
-                                          text: 'Gizlilik Politikası',
-                                          style: TextStyle(
-                                            color: Color(0xFFCAB7FF),
-                                            fontWeight: FontWeight.w600,
-                                            decoration:
-                                                TextDecoration.underline,
+                                        const TextSpan(text: ' ve '),
+                                        WidgetSpan(
+                                          child: GestureDetector(
+                                            onTap: () => _showPrivacy(context),
+                                            child: const Text(
+                                              'Gizlilik Politikası',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFFCAB7FF),
+                                                fontWeight: FontWeight.w600,
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        TextSpan(
-                                            text: '\'nı kabul etmiş olursunuz.'),
                                       ],
                                     ),
                                   ),
@@ -338,33 +339,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           // Kayıt Ol butonu
                           SizedBox(
-                            height: 52,
+                            height: 56,
                             child: ElevatedButton(
                               onPressed: isLoading ? null : _handleRegister,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFCAB7FF),
-                                disabledBackgroundColor:
-                                    const Color(0xFFE0D6FF),
+                                foregroundColor: const Color(0xFF394272),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
-                                elevation: 4,
+                                elevation: 6,
                               ),
                               child: isLoading
                                   ? const SizedBox(
                                       width: 24,
                                       height: 24,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2,
                                         color: Color(0xFF394272),
+                                        strokeWidth: 2,
                                       ),
                                     )
                                   : const Text(
-                                      'Kayıt Ol',
+                                      'Hesap Oluştur',
                                       style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF394272),
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                             ),
@@ -376,7 +375,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Giriş yap linki
+                  // Zaten hesabın var mı?
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -405,6 +404,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTerms(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Kullanım Koşulları',
+          style: TextStyle(color: Color(0xFF394272)),
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Kullanım koşulları içeriği burada yer alacak.\n\n'
+            'Bu içerik uygulama yayınlanmadan önce güncellenecektir.',
+            style: TextStyle(color: Color(0xFF6C6FA4)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPrivacy(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Gizlilik Politikası',
+          style: TextStyle(color: Color(0xFF394272)),
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Gizlilik politikası içeriği burada yer alacak.\n\n'
+            'Bu içerik uygulama yayınlanmadan önce güncellenecektir.',
+            style: TextStyle(color: Color(0xFF6C6FA4)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tamam'),
           ),
         ],
       ),

@@ -92,40 +92,45 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(
-              width: 40,
-              height: 40,
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.9),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                color: Colors.white.withValues(alpha:0.9),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.arrow_back_ios_new,
+                size: 20,
                 color: Color(0xFF394272),
-                size: 18,
               ),
             ),
           ),
-
-          const Expanded(
-            child: Text(
-              'Kategori',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF394272),
-              ),
-              textAlign: TextAlign.center,
+          const Spacer(),
+          // Başlık
+          Text(
+            widget.category.title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF394272),
             ),
           ),
-
-          const SizedBox(width: 40),
+          const Spacer(),
+          // Home butonu
+          GestureDetector(
+            onTap: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha:0.9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.home_rounded,
+                size: 20,
+                color: Color(0xFF394272),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -138,14 +143,14 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         gradient: LinearGradient(
           colors: access.hasAccess
               ? [const Color(0xFFCAB7FF), const Color(0xFFE0D6FF)]
-              : [const Color(0xFFFFD891), const Color(0xFFFFE4B5)],
+              : [const Color(0xFFE8E8E8), const Color(0xFFF5F5F5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha:0.1),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -153,87 +158,68 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       ),
       child: Column(
         children: [
-          // Emoji/İkon
+          // Emoji
           Text(
             widget.category.iconEmoji ?? '🎵',
             style: const TextStyle(fontSize: 48),
           ),
-
-          const SizedBox(height: 16),
-
+          const SizedBox(height: 12),
           // Başlık
           Text(
             widget.category.title,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF394272),
-            ),
             textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: access.hasAccess
+                  ? const Color(0xFF394272)
+                  : const Color(0xFF888888),
+            ),
           ),
-
-          if (widget.category.subtitle != null) ...[
+          if (widget.category.description != null) ...[
             const SizedBox(height: 8),
             Text(
-              widget.category.subtitle!,
+              widget.category.description!,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: const Color(0xFF394272).withValues(alpha: 0.7),
+                color: access.hasAccess
+                    ? const Color(0xFF6C6FA4)
+                    : const Color(0xFF999999),
               ),
-              textAlign: TextAlign.center,
             ),
           ],
-
           const SizedBox(height: 16),
-
-          // İstatistikler
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildMiniStat(
-                Icons.emoji_events,
-                '${widget.category.challengeCount}',
-                'Challenge',
-              ),
-              const SizedBox(width: 24),
-              _buildMiniStat(
-                Icons.language,
-                widget.category.language.toUpperCase(),
-                'Dil',
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Durum
+          // Durum badge'i
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: access.hasAccess
-                  ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
-                  : const Color(0xFFFF9800).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+                  ? const Color(0xFF4CAF50).withValues(alpha:0.15)
+                  : const Color(0xFFFFB958).withValues(alpha:0.15),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   access.hasAccess ? Icons.lock_open : Icons.lock,
-                  size: 18,
+                  size: 16,
                   color: access.hasAccess
                       ? const Color(0xFF4CAF50)
-                      : const Color(0xFFFF9800),
+                      : const Color(0xFFFFB958),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
-                  access.hasAccess ? 'Erişim Açık' : 'Kilitli',
+                  access.hasAccess
+                      ? '${widget.category.challengeCount} Challenge Açık'
+                      : 'Kategori Kilitli',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: access.hasAccess
                         ? const Color(0xFF4CAF50)
-                        : const Color(0xFFFF9800),
+                        : const Color(0xFFFFB958),
                   ),
                 ),
               ],
@@ -244,123 +230,44 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     );
   }
 
-  Widget _buildMiniStat(IconData icon, String value, String label) {
-    return Column(
-      children: [
-        Icon(icon, color: const Color(0xFF6C6FA4), size: 20),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF394272),
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF6C6FA4),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildPriceInfo() {
-    final priceInfo = PricingService.getCategoryPriceInfo(widget.category.challengeCount);
-
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFE082)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Tekil fiyat',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6C6FA4),
-                ),
-              ),
-              Text(
-                priceInfo.originalPriceFormatted,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6C6FA4),
-                  decoration: TextDecoration.lineThrough,
-                ),
-              ),
-            ],
+          const Icon(
+            Icons.info_outline,
+            color: Color(0xFFF57C00),
+            size: 24,
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Paket fiyatı',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF394272),
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bu kategori kilitli',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFE65100),
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '%${priceInfo.discountPercent.toInt()} İNDİRİM',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Kategoriyi satın alarak tüm challenge\'lara erişebilirsin.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: const Color(0xFFE65100).withValues(alpha:0.8),
                   ),
-                ],
-              ),
-              Text(
-                priceInfo.discountedPriceFormatted,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFFFF9800),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                '${priceInfo.savingsFormatted} tasarruf',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4CAF50),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -384,15 +291,13 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           return Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: Colors.white.withValues(alpha:0.9),
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Center(
               child: Text(
                 'Bu kategoride henüz challenge yok',
-                style: TextStyle(
-                  color: Color(0xFF6C6FA4),
-                ),
+                style: TextStyle(color: Color(0xFF6C6FA4)),
               ),
             ),
           );
@@ -403,13 +308,42 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Challenge\'lar (${challenges.length})',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF394272),
-              ),
+            Row(
+              children: [
+                Text(
+                  'Challenge\'lar (${challenges.length})',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF394272),
+                  ),
+                ),
+                if (!categoryAccess.hasAccess) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB958).withValues(alpha:0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock, size: 12, color: Color(0xFFFFB958)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Önizleme',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFFFB958),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 12),
             ...challenges.map((c) => _buildChallengeItem(c, user, categoryAccess)),
@@ -428,122 +362,174 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     final hasAccess = categoryAccess.hasAccess ||
         (user?.hasChallengeAccess(challenge.id) ?? false);
 
+    // Kilitli kategoride içerikler görünür ama tıklanamaz
+    final isClickable = hasAccess || categoryAccess.hasAccess;
+
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ChallengeDetailScreen(challenge: challenge),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Durum ikonu
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: hasAccess
-                    ? const Color(0xFFCAB7FF).withValues(alpha: 0.2)
-                    : const Color(0xFFFF9800).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+      onTap: isClickable
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChallengeDetailScreen(challenge: challenge),
+                ),
+              );
+            }
+          : () {
+              // Kilitli challenge'a tıklandığında bilgi göster
+              _showLockedInfo(context);
+            },
+      child: Opacity(
+        opacity: hasAccess ? 1.0 : 0.6,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha:0.95),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha:0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              child: Center(
-                child: Icon(
-                  hasAccess ? Icons.play_arrow : Icons.lock,
+            ],
+          ),
+          child: Row(
+            children: [
+              // Durum ikonu
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
                   color: hasAccess
-                      ? const Color(0xFF6C6FA4)
-                      : const Color(0xFFFF9800),
-                  size: 24,
+                      ? const Color(0xFFCAB7FF).withValues(alpha:0.2)
+                      : const Color(0xFFE8E8E8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: hasAccess
+                      ? Text(
+                          challenge.type == 'artist' ? '🎤' : '🎵',
+                          style: const TextStyle(fontSize: 20),
+                        )
+                      : const Icon(
+                          Icons.lock,
+                          size: 20,
+                          color: Color(0xFF888888),
+                        ),
                 ),
               ),
-            ),
-
-            const SizedBox(width: 14),
-
-            // Bilgiler
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    challenge.title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF394272),
+              const SizedBox(width: 12),
+              // Challenge bilgisi
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      challenge.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: hasAccess
+                            ? const Color(0xFF394272)
+                            : const Color(0xFF888888),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
+                    if (challenge.subtitle != null) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        '${challenge.totalSongs} şarkı',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6C6FA4),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFCCCCCC),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        challenge.difficultyLabel,
+                        challenge.subtitle!,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: _getDifficultyColor(challenge.difficulty),
+                          color: hasAccess
+                              ? const Color(0xFF6C6FA4)
+                              : const Color(0xFF999999),
                         ),
                       ),
                     ],
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _buildMiniChip(
+                          '${challenge.totalSongs} şarkı',
+                          hasAccess,
+                        ),
+                        const SizedBox(width: 6),
+                        _buildMiniChip(
+                          _getDifficultyText(challenge.difficulty),
+                          hasAccess,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-            // Ok
-            const Icon(
-              Icons.chevron_right,
-              color: Color(0xFFCCCCCC),
-              size: 24,
-            ),
-          ],
+              // Ok veya kilit
+              Icon(
+                hasAccess ? Icons.chevron_right : Icons.lock_outline,
+                color: hasAccess
+                    ? const Color(0xFF6C6FA4)
+                    : const Color(0xFFCCCCCC),
+                size: 24,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Color _getDifficultyColor(ChallengeDifficulty difficulty) {
+  Widget _buildMiniChip(String text, bool hasAccess) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: hasAccess ? const Color(0xFFF5F5FF) : const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          color: hasAccess ? const Color(0xFF6C6FA4) : const Color(0xFF999999),
+        ),
+      ),
+    );
+  }
+
+  String _getDifficultyText(String difficulty) {
     switch (difficulty) {
-      case ChallengeDifficulty.easy:
-        return const Color(0xFF4CAF50);
-      case ChallengeDifficulty.medium:
-        return const Color(0xFFFF9800);
-      case ChallengeDifficulty.hard:
-        return const Color(0xFFF44336);
+      case 'easy':
+        return 'Kolay';
+      case 'medium':
+        return 'Orta';
+      case 'hard':
+        return 'Zor';
+      default:
+        return 'Orta';
     }
+  }
+
+  void _showLockedInfo(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.lock, color: Colors.white, size: 18),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Bu challenge\'ı oynamak için kategoriyi satın al'),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFFFFB958),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Widget _buildBottomButton(BuildContext context, UserModel? user) {
@@ -553,7 +539,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha:0.1),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -608,7 +594,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     TextSpan(
                       text: 'veya ',
                       style: TextStyle(
-                        color: const Color(0xFF394272).withValues(alpha: 0.7),
+                        color: const Color(0xFF394272).withValues(alpha:0.7),
                       ),
                     ),
                     const TextSpan(
@@ -621,7 +607,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     TextSpan(
                       text: ' ile tümüne eriş',
                       style: TextStyle(
-                        color: const Color(0xFF394272).withValues(alpha: 0.7),
+                        color: const Color(0xFF394272).withValues(alpha:0.7),
                       ),
                     ),
                   ],
