@@ -263,4 +263,92 @@ class MatchmakingService {
     }
     await batch.commit();
   }
+
+  /// Accept a match invite (from deep link)
+  /// Returns roomId if successfully matched
+  Future<String?> acceptMatch({
+    required String oderId,
+    required String opponentId,
+    required String challengeId,
+    ModeVariant modeVariant = ModeVariant.relax,
+  }) async {
+    // Get my player ID
+    final myPlayerId = await _playerIdService.getPlayerId(oderId);
+    if (myPlayerId == null) {
+      throw Exception('Oyuncu ID\'niz bulunamadı');
+    }
+
+    // Get opponent's UID from their player ID
+    final opponentUser = await _playerIdService.getUserByPlayerId(opponentId);
+    if (opponentUser == null) {
+      throw Exception('Rakip bulunamadı');
+    }
+
+    // Create intent (this will auto-pair if opponent already created one)
+    final intent = await createIntent(
+      fromUid: oderId,
+      fromPlayerId: myPlayerId,
+      toPlayerId: opponentId,
+      mode: MatchMode.challengeOnline,
+      challengeId: challengeId,
+      modeVariant: modeVariant,
+    );
+
+    return intent?.roomId;
+  }
+
+  /// Quick match - find or create a match for random opponent
+  Future<MatchIntentModel?> quickMatch({
+    required String fromUid,
+    required String fromPlayerId,
+    required MatchMode mode,
+    String? challengeId,
+    ModeVariant? modeVariant,
+  }) async {
+    // Look for any waiting intent that matches criteria
+    Query<Map<String, dynamic>> query = _intentsRef
+        .where('mode', isEqualTo: mode.name)
+        .where('status', isEqualTo: 'waiting')
+        .where('fromUid', isNotEqualTo: fromUid);
+
+    if (mode == MatchMode.challengeOnline && challengeId != null) {
+      query = query.where('challengeId', isEqualTo: challengeId);
+      if (modeVariant != null) {
+        query = query.where('modeVariant', isEqualTo: modeVariant.name);
+      }
+    }
+
+    final waitingIntents = await query.limit(1).get();
+
+    if (waitingIntents.docs.isNotEmpty) {
+      // Found a waiting opponent - match with them
+      final opponentIntent = MatchIntentModel.fromFirestore(waitingIntents.docs.first);
+      return createIntent(
+        fromUid: fromUid,
+        fromPlayerId: fromPlayerId,
+        toPlayerId: opponentIntent.fromPlayerId,
+        mode: mode,
+        challengeId: challengeId,
+        modeVariant: modeVariant,
+      );
+    }
+
+    // No opponent found - create intent and wait
+    // For quick match, we use a special "ANY" toPlayerId
+    final intentDoc = _intentsRef.doc();
+    final intent = MatchIntentModel(
+      id: intentDoc.id,
+      fromUid: fromUid,
+      fromPlayerId: fromPlayerId,
+      toPlayerId: 'QUICK_MATCH',
+      mode: mode,
+      challengeId: challengeId,
+      modeVariant: modeVariant,
+      createdAt: DateTime.now(),
+      status: IntentStatus.waiting,
+    );
+
+    await intentDoc.set(intent.toFirestore());
+    return intent;
+  }
 }

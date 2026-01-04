@@ -24,6 +24,8 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	
+	<!-- Deep Link URL Schemes -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -37,6 +39,19 @@
 			</array>
 		</dict>
 	</array>
+	
+	<!-- Universal Links / Associated Domains (set in Runner.entitlements) -->
+	<!-- App Links için Xcode'da Runner > Signing & Capabilities > Associated Domains ekle:
+	     applinks:find2sing.app
+	-->
+	
+	<!-- Push Notifications Background Mode -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

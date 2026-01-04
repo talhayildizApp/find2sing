@@ -40,6 +40,42 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1038132803886:android:9de7f0674e08c5ed3822bf",
+        "android_client_info": {
+          "package_name": "com.tbdigital.find2sing"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1038132803886-ho2ntgcgvoqrhldakf9v1b8634qvhud4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDgEmAx57H-zTmDygy_QaaT-7FiemWJvM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1038132803886-ho2ntgcgvoqrhldakf9v1b8634qvhud4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1038132803886-g8audousq9itpavf3huo12jtfl73e8gn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sarkiapp"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'package:uni_links/uni_links.dart';
 import 'dart:async';
 
 // Firebase config
@@ -10,6 +9,10 @@ import 'firebase_options.dart';
 
 // Providers
 import 'package:sarkiapp/providers/auth_provider.dart';
+
+// Services
+import 'package:sarkiapp/services/deep_link_service.dart';
+import 'package:sarkiapp/services/push_notification_service.dart';
 
 // Screens
 import 'package:sarkiapp/screens/auth/login_screen.dart';
@@ -21,6 +24,9 @@ import 'package:sarkiapp/screens/challenge/challenge_screen.dart';
 import 'package:sarkiapp/screens/admin/dev_admin_screen.dart';
 import 'package:sarkiapp/screens/online/online_match_screen.dart';
 import 'package:sarkiapp/models/match_intent_model.dart';
+
+// Widgets
+import 'package:sarkiapp/widgets/app_link_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,6 +78,10 @@ class SarkiApp extends StatelessWidget {
           '/online-match': (context) => const OnlineMatchScreen(),
         },
         initialRoute: '/',
+        builder: (context, child) {
+          // Wrap with AppLinkHandler for deep link and notification handling
+          return AppLinkHandler(child: child ?? const SizedBox());
+        },
       ),
     );
   }
@@ -89,7 +99,9 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeOutAnimation;
-  StreamSubscription? _linkSubscription;
+  final DeepLinkService _deepLinkService = DeepLinkService();
+  final PushNotificationService _pushService = PushNotificationService();
+  StreamSubscription<DeepLinkData>? _linkSubscription;
   String? _pendingDeepLinkOpponentId;
 
   @override
@@ -105,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
-    _initDeepLinks();
+    _initServices();
 
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) _controller.forward();
@@ -118,30 +130,28 @@ class _SplashScreenState extends State<SplashScreen>
     });
   }
 
-  Future<void> _initDeepLinks() async {
-    try {
-      final initialLink = await getInitialLink();
-      if (initialLink != null) _handleDeepLink(initialLink);
-    } catch (e) {
-      debugPrint('Deep link error: $e');
+  Future<void> _initServices() async {
+    // Initialize deep link service
+    await _deepLinkService.initialize();
+    
+    // Initialize push notification service
+    await _pushService.initialize();
+    
+    // Listen for deep links during splash
+    _linkSubscription = _deepLinkService.onLink.listen(_handleDeepLink);
+    
+    // Check for pending link
+    if (_deepLinkService.pendingLink != null) {
+      _handleDeepLink(_deepLinkService.pendingLink!);
     }
-
-    _linkSubscription = linkStream.listen((String? link) {
-      if (link != null) _handleDeepLink(link);
-    });
   }
 
-  void _handleDeepLink(String link) {
-    final uri = Uri.tryParse(link);
-    if (uri == null) return;
-
-    if (uri.host == 'match' || uri.path.contains('match')) {
-      final opponentId = uri.queryParameters['opponentId'];
-      if (opponentId != null && opponentId.isNotEmpty) {
-        _pendingDeepLinkOpponentId = opponentId;
-        if (_controller.isCompleted) {
-          _navigateToOnlineMatch(opponentId);
-        }
+  void _handleDeepLink(DeepLinkData data) {
+    if (data.type == DeepLinkType.matchInvite || 
+        data.type == DeepLinkType.friendInvite) {
+      _pendingDeepLinkOpponentId = data.oderId;
+      if (_controller.isCompleted) {
+        _navigateToOnlineMatch(_pendingDeepLinkOpponentId!);
       }
     }
   }
@@ -158,7 +168,7 @@ class _SplashScreenState extends State<SplashScreen>
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => OnlineMatchScreen(
-          prefillOpponentId: opponentId,
+          prefilledOpponentId: opponentId,
           mode: MatchMode.friendsWord,
         ),
       ),

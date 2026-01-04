@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Word set for a song
+/// Word set for a song (eski yapı - uyumluluk için tutuyoruz)
 class WordSetModel {
   final String id;
   final List<String> words;
@@ -30,6 +30,7 @@ class WordSetModel {
 }
 
 /// Word index mapping word to songIds for a challenge
+/// Collection: challengeWordIndex/{challengeId}_{word}
 class ChallengeWordIndexModel {
   final String id; // {challengeId}_{word}
   final String challengeId;
@@ -69,6 +70,43 @@ class ChallengeWordIndexModel {
   /// Get unsolved song IDs
   List<String> getUnsolvedSongIds(List<String> solvedSongIds) {
     return songIds.where((id) => !solvedSongIds.contains(id)).toList();
+  }
+}
+
+/// Challenge song with words (for online mode)
+class ChallengeSongWithWords {
+  final String id;
+  final String artist;
+  final String title;
+  final String? wordSetId;
+  final bool active;
+
+  ChallengeSongWithWords({
+    required this.id,
+    required this.artist,
+    required this.title,
+    this.wordSetId,
+    this.active = true,
+  });
+
+  factory ChallengeSongWithWords.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return ChallengeSongWithWords(
+      id: doc.id,
+      artist: data['artist'] ?? '',
+      title: data['title'] ?? '',
+      wordSetId: data['wordSetId'],
+      active: data['active'] ?? true,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'artist': artist,
+      'title': title,
+      'wordSetId': wordSetId,
+      'active': active,
+    };
   }
 }
 

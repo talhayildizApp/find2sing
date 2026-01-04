@@ -1,20 +1,27 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/challenge_model.dart';
+import '../../models/word_set_model.dart';
 import '../../services/challenge_service.dart';
-import 'challenge_detail_screen.dart';
 import 'challenge_result_screen.dart';
 
+/// Challenge Game Screen - 3 Single-player mode destekli
+/// - Time Race: 5dk toplam süre, yanlış = 3s freeze
+/// - Relax: 30s/round, yanlış = 1s freeze (her 3 yanlışta +1s)
+/// - Real: 30s/round, doğru +1, yanlış -3 (leaderboard'a gider)
 class ChallengeGameScreen extends StatefulWidget {
   final ChallengeModel challenge;
   final ChallengePlayMode playMode;
+  final ChallengeSingleMode singleMode;
 
   const ChallengeGameScreen({
     super.key,
     required this.challenge,
     this.playMode = ChallengePlayMode.solo,
+    this.singleMode = ChallengeSingleMode.relax,
   });
 
   @override
@@ -23,33 +30,48 @@ class ChallengeGameScreen extends StatefulWidget {
 
 class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
   final ChallengeService _challengeService = ChallengeService();
-  final TextEditingController _songController = TextEditingController();
-  final TextEditingController _artistController = TextEditingController();
+  final Random _random = Random();
 
-  // Şarkı listesi
-  List<ChallengeSongModel> _songs = [];
+  // Game state
+  List<ChallengeSongModel> _allSongs = [];
   List<ChallengeSongModel> _remainingSongs = [];
-  
-  // Solo mod için
-  final List<ChallengeSongModel> _foundSongs = [];
-  
-  // Friends mod için
-  final List<ChallengeSongModel> _player1FoundSongs = [];
-  final List<ChallengeSongModel> _player2FoundSongs = [];
-  int _currentPlayer = 1; // 1 veya 2
-  
-  ChallengeSongModel? _currentSong;
-  
-  int _currentIndex = 0;
-  int _totalElapsedSeconds = 0;
-  int _wordSecondsLeft = 15; // Her şarkı için süre
-  bool _isLoading = true;
-  bool _isFinished = false;
-  bool _isPaused = false;
+  final List<ChallengeSongModel> _solvedSongs = [];
+  final Set<String> _solvedSongIds = {};
 
+  String _currentWord = '';
+  List<ChallengeSongModel> _validSongsForWord = [];
+
+  // Selection state
+  String? _selectedArtist;
+  ChallengeSongModel? _selectedSong;
+  List<String> _artistList = [];
+  List<ChallengeSongModel> _songsForArtist = [];
+
+  // Timing
+  int _totalSeconds = 0;
+  int _roundSeconds = 30;
+  int _freezeSeconds = 0;
   Timer? _timer;
 
-  bool get isFriendsMode => widget.playMode == ChallengePlayMode.friends;
+  // Scoring (Real mode)
+  int _score = 0;
+  int _correctCount = 0;
+  int _wrongCount = 0;
+
+  // Relax mode progressive freeze
+  int _consecutiveWrong = 0;
+  int _currentFreezeTime = 1;
+
+  // UI state
+  bool _isLoading = true;
+  bool _isFinished = false;
+  bool _isFrozen = false;
+  String? _feedbackMessage;
+  Color? _feedbackColor;
+
+  // Mode settings
+  int get _totalTimeLimit => 5 * 60; // 5 dakika (Time Race)
+  int get _roundTimeLimit => 30;
 
   @override
   void initState() {
@@ -60,396 +82,257 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _songController.dispose();
-    _artistController.dispose();
     super.dispose();
   }
 
   Future<void> _loadSongs() async {
     try {
-      final songs = await _challengeService.getChallengeSongs(widget.challenge.id);
-      setState(() {
-        _songs = songs;
-        _remainingSongs = List.from(songs);
-        _remainingSongs.shuffle();
-        _isLoading = false;
-        if (_remainingSongs.isNotEmpty) {
-          _currentSong = _remainingSongs.first;
-        }
-        _wordSecondsLeft = 15;
-      });
+      final songs = await _challengeService.getSongsForChallenge(widget.challenge.id);
       
-      if (isFriendsMode) {
-        _showPlayerTurnDialog(1);
-      } else {
-        _startTimer();
+      if (songs.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _feedbackMessage = 'Bu challenge\'da şarkı bulunamadı.';
+        });
+        return;
       }
+
+      final artists = songs.map((s) => s.artist).toSet().toList()..sort();
+
+      setState(() {
+        _allSongs = songs;
+        _remainingSongs = List.from(songs)..shuffle();
+        _artistList = artists;
+        _isLoading = false;
+      });
+
+      _selectNextWord();
+      _startTimer();
     } catch (e) {
-      debugPrint('Şarkılar yüklenemedi: $e');
-      setState(() => _isLoading = false);
+      debugPrint('Error loading songs: $e');
+      setState(() {
+        _isLoading = false;
+        _feedbackMessage = 'Şarkılar yüklenirken hata oluştu.';
+      });
     }
   }
 
   void _startTimer() {
     _timer?.cancel();
+    _roundSeconds = _roundTimeLimit;
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || _isFinished || _isPaused) return;
-      
+      if (!mounted || _isFinished) {
+        timer.cancel();
+        return;
+      }
+
       setState(() {
-        _totalElapsedSeconds++;
-        _wordSecondsLeft--;
-        
-        if (_wordSecondsLeft <= 0) {
-          // Süre doldu
-          if (isFriendsMode) {
-            _switchPlayer();
-          } else {
-            _skipSong();
+        _totalSeconds++;
+
+        if (_isFrozen && _freezeSeconds > 0) {
+          _freezeSeconds--;
+          if (_freezeSeconds == 0) {
+            _isFrozen = false;
+            _feedbackMessage = null;
+          }
+          return;
+        }
+
+        if (widget.singleMode == ChallengeSingleMode.timeRace) {
+          if (_totalSeconds >= _totalTimeLimit) {
+            _finishGame(timedOut: true);
+            return;
+          }
+        }
+
+        if (widget.singleMode != ChallengeSingleMode.timeRace) {
+          _roundSeconds--;
+          if (_roundSeconds <= 0) {
+            _handleTimeout();
           }
         }
       });
     });
   }
 
-  void _pauseTimer() {
-    setState(() => _isPaused = true);
+  void _handleTimeout() {
+    _handleWrongAnswer(isTimeout: true);
   }
 
-  void _resumeTimer() {
-    setState(() => _isPaused = false);
-  }
-
-  void _showPlayerTurnDialog(int player) {
-    _pauseTimer();
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              player == 1 ? Icons.person : Icons.person_outline,
-              color: player == 1 ? const Color(0xFFCAB7FF) : const Color(0xFFFFB958),
-              size: 32,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Oyuncu $player',
-              style: TextStyle(
-                color: player == 1 ? const Color(0xFFCAB7FF) : const Color(0xFFFFB958),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Sıra sende!',
-              style: const TextStyle(
-                fontSize: 18,
-                color: Color(0xFF394272),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Cihazı Oyuncu $player\'e ver',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF6C6FA4),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _resumeTimer();
-                if (_timer == null || !_timer!.isActive) {
-                  _startTimer();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: player == 1 
-                    ? const Color(0xFFCAB7FF) 
-                    : const Color(0xFFFFB958),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Hazırım!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _switchPlayer() {
-    _timer?.cancel();
-    _songController.clear();
-    _artistController.clear();
-    
-    final nextPlayer = _currentPlayer == 1 ? 2 : 1;
-    
-    // Her iki oyuncu da oynadıysa sonraki şarkıya geç
-    if (nextPlayer == 1 && _currentPlayer == 2) {
-      _moveToNextSong();
-    }
-    
-    setState(() {
-      _currentPlayer = nextPlayer;
-      _wordSecondsLeft = 15;
-    });
-    
-    if (_remainingSongs.isNotEmpty) {
-      _showPlayerTurnDialog(nextPlayer);
-    }
-  }
-
-  void _moveToNextSong() {
+  void _selectNextWord() {
     if (_remainingSongs.isEmpty) {
       _finishGame();
       return;
     }
+
+    final randomSong = _remainingSongs[_random.nextInt(_remainingSongs.length)];
     
-    setState(() {
-      _remainingSongs.removeAt(0);
-      if (_remainingSongs.isNotEmpty) {
-        _currentSong = _remainingSongs.first;
-        _currentIndex++;
-      } else {
-        _finishGame();
-      }
-    });
-  }
-
-  void _checkAnswer() {
-    if (_currentSong == null) return;
-
-    final songInput = _songController.text.trim().toLowerCase();
-    final artistInput = _artistController.text.trim().toLowerCase();
-
-    if (songInput.isEmpty || artistInput.isEmpty) {
-      _showMessage('Şarkı ve sanatçı adını gir!');
+    final keywords = randomSong.topKeywords.isNotEmpty 
+        ? randomSong.topKeywords 
+        : randomSong.keywords;
+    
+    if (keywords.isEmpty) {
+      _remainingSongs.remove(randomSong);
+      _selectNextWord();
       return;
     }
 
-    final songMatch = _currentSong!.title.toLowerCase().contains(songInput) ||
-        songInput.contains(_currentSong!.title.toLowerCase()) ||
-        _currentSong!.keywords.any((k) => k.toLowerCase().contains(songInput));
+    final word = keywords[_random.nextInt(keywords.length)];
+    final validSongs = _remainingSongs.where((s) => s.containsWord(word)).toList();
 
-    final artistMatch = _currentSong!.artist.toLowerCase().contains(artistInput) ||
-        artistInput.contains(_currentSong!.artist.toLowerCase());
+    setState(() {
+      _currentWord = word;
+      _validSongsForWord = validSongs;
+      _selectedArtist = null;
+      _selectedSong = null;
+      _songsForArtist = [];
+      _roundSeconds = _roundTimeLimit;
+    });
+  }
 
-    if (songMatch && artistMatch) {
-      // Doğru cevap
-      if (isFriendsMode) {
-        if (_currentPlayer == 1) {
-          _player1FoundSongs.add(_currentSong!);
-        } else {
-          _player2FoundSongs.add(_currentSong!);
-        }
-        _showMessage('🎉 Doğru! +1 puan', isSuccess: true);
-        _moveToNextSong();
-        
-        if (_remainingSongs.isNotEmpty) {
-          _songController.clear();
-          _artistController.clear();
-          setState(() => _wordSecondsLeft = 15);
-          _showPlayerTurnDialog(_currentPlayer == 1 ? 2 : 1);
-          setState(() => _currentPlayer = _currentPlayer == 1 ? 2 : 1);
-        }
-      } else {
-        // Solo mod
-        setState(() {
-          _foundSongs.add(_currentSong!);
-          _remainingSongs.remove(_currentSong);
-          _currentIndex++;
-          _songController.clear();
-          _artistController.clear();
-          _wordSecondsLeft = 15;
+  void _onArtistSelected(String artist) {
+    final songs = _allSongs.where((s) => s.artist == artist).toList();
+    setState(() {
+      _selectedArtist = artist;
+      _songsForArtist = songs;
+      _selectedSong = null;
+    });
+  }
 
-          if (_remainingSongs.isEmpty) {
-            _finishGame();
-          } else {
-            _currentSong = _remainingSongs.first;
-          }
-        });
-        _showMessage('🎉 Doğru!', isSuccess: true);
-      }
+  void _onSongSelected(ChallengeSongModel song) {
+    setState(() => _selectedSong = song);
+  }
+
+  void _submitAnswer() {
+    if (_selectedSong == null || _isFrozen) return;
+
+    final isCorrect = _validSongsForWord.any((s) => s.id == _selectedSong!.id);
+
+    if (isCorrect) {
+      _handleCorrectAnswer();
     } else {
-      _showMessage('Yanlış, tekrar dene!', isError: true);
+      _handleWrongAnswer();
     }
   }
 
-  void _skipSong() {
-    if (_remainingSongs.isEmpty || _remainingSongs.length <= 1) {
-      _finishGame();
-      return;
-    }
+  void _handleCorrectAnswer() {
+    final song = _selectedSong!;
 
     setState(() {
-      final skipped = _remainingSongs.removeAt(0);
-      _remainingSongs.add(skipped);
-      _currentSong = _remainingSongs.first;
-      _songController.clear();
-      _artistController.clear();
-      _wordSecondsLeft = 15;
+      _solvedSongs.add(song);
+      _solvedSongIds.add(song.id);
+      _remainingSongs.removeWhere((s) => s.id == song.id);
+      _correctCount++;
+      _consecutiveWrong = 0;
+
+      if (widget.singleMode == ChallengeSingleMode.real) {
+        _score += 1;
+      }
+
+      _feedbackMessage = '✓ Doğru!';
+      _feedbackColor = Colors.green;
+    });
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      setState(() => _feedbackMessage = null);
+
+      if (_remainingSongs.isEmpty) {
+        _finishGame();
+      } else {
+        _selectNextWord();
+      }
     });
   }
 
-  void _showHint() {
-    if (_currentSong == null) return;
+  void _handleWrongAnswer({bool isTimeout = false}) {
+    setState(() {
+      _wrongCount++;
+      _consecutiveWrong++;
 
-    final hint = _currentSong!.title.substring(
-      0, 
-      (_currentSong!.title.length / 2).ceil(),
-    );
+      if (widget.singleMode == ChallengeSingleMode.real) {
+        _score -= 3;
+      }
+
+      _feedbackMessage = isTimeout ? '⏱ Süre doldu!' : '✗ Yanlış!';
+      _feedbackColor = Colors.red;
+    });
+
+    int freezeDuration = 0;
     
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('💡 İpucu'),
-        content: Text(
-          'Şarkı adı "$hint..." ile başlıyor\nSanatçı: ${_currentSong!.artist}',
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFCAB7FF),
-            ),
-            child: const Text(
-              'Tamam',
-              style: TextStyle(color: Color(0xFF394272)),
-            ),
-          ),
-        ],
-      ),
-    );
+    switch (widget.singleMode) {
+      case ChallengeSingleMode.timeRace:
+        freezeDuration = 3;
+        break;
+      case ChallengeSingleMode.relax:
+        if (_consecutiveWrong % 3 == 0 && _consecutiveWrong > 0) {
+          _currentFreezeTime++;
+        }
+        freezeDuration = _currentFreezeTime;
+        break;
+      case ChallengeSingleMode.real:
+        freezeDuration = 1;
+        break;
+    }
+
+    setState(() {
+      _isFrozen = true;
+      _freezeSeconds = freezeDuration;
+    });
+
+    Future.delayed(Duration(seconds: freezeDuration + 1), () {
+      if (!mounted || _isFinished) return;
+      _selectNextWord();
+    });
   }
 
-  void _finishGame() {
+  void _finishGame({bool timedOut = false}) {
     _timer?.cancel();
     setState(() => _isFinished = true);
-    
-    if (!isFriendsMode) {
-      _saveProgress();
-    }
+    _saveGameRun(timedOut: timedOut);
 
-    if (isFriendsMode) {
-      // Friends mod sonuç ekranı
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChallengeFriendsResultScreen(
-            challenge: widget.challenge,
-            player1Songs: _player1FoundSongs,
-            player2Songs: _player2FoundSongs,
-            totalSongs: _songs.length,
-            totalElapsedSeconds: _totalElapsedSeconds,
-          ),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChallengeResultScreen(
+          challenge: widget.challenge,
+          mode: widget.singleMode,
+          solvedSongs: _solvedSongs,
+          totalSongs: _allSongs.length,
+          score: _score,
+          correctCount: _correctCount,
+          wrongCount: _wrongCount,
+          durationSeconds: _totalSeconds,
+          timedOut: timedOut,
         ),
-      );
-    } else {
-      // Solo mod sonuç ekranı
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChallengeResultScreen(
-            challenge: widget.challenge,
-            foundSongs: _foundSongs,
-            totalSongs: _songs.length,
-            totalElapsedSeconds: _totalElapsedSeconds,
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _saveProgress() async {
-    final user = context.read<AuthProvider>().user;
-    if (user == null) return;
-
-    final progress = ChallengeProgressModel(
-      id: '${user.uid}_${widget.challenge.id}',
-      oderId: user.uid,
-      challengeId: widget.challenge.id,
-      foundSongs: _foundSongs.length,
-      totalSongs: _songs.length,
-      foundSongIds: _foundSongs.map((s) => s.id).toList(),
-      bestTime: _totalElapsedSeconds,
-      isCompleted: _foundSongs.length == _songs.length,
-      completedAt: _foundSongs.length == _songs.length ? DateTime.now() : null,
-      startedAt: DateTime.now(),
-      lastPlayedAt: DateTime.now(),
-      playCount: 1,
-    );
-
-    await _challengeService.saveProgress(user.uid, progress);
-  }
-
-  void _showMessage(String message, {bool isSuccess = false, bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isSuccess 
-            ? const Color(0xFF4CAF50) 
-            : isError 
-                ? const Color(0xFFF44336) 
-                : const Color(0xFF6C6FA4),
-        duration: const Duration(seconds: 1),
       ),
     );
   }
 
-  void _confirmExit() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Oyundan Çık'),
-        content: Text(
-          isFriendsMode
-              ? '${_player1FoundSongs.length + _player2FoundSongs.length} / ${_songs.length} şarkı buldunuz.'
-              : '${_foundSongs.length} / ${_songs.length} şarkı buldun.',
+  Future<void> _saveGameRun({bool timedOut = false}) async {
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final uid = authProvider.user?.uid ?? '';
+      if (uid.isEmpty) return;
+
+      await _challengeService.saveChallengeRun(
+        ChallengeRunModel(
+          id: '',
+          uid: uid,
+          challengeId: widget.challenge.id,
+          mode: widget.singleMode.name,
+          score: _score,
+          correct: _correctCount,
+          wrong: _wrongCount,
+          durationMs: _totalSeconds * 1000,
+          finished: !timedOut && _remainingSongs.isEmpty,
+          createdAt: DateTime.now(),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Devam Et'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _finishGame();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFB958),
-            ),
-            child: const Text(
-              'Bitir',
-              style: TextStyle(color: Color(0xFF8C5A1F)),
-            ),
-          ),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint('Error saving game run: $e');
+    }
   }
 
   String _formatTime(int seconds) {
@@ -462,298 +345,143 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset('assets/images/bg_music_clouds.png', fit: BoxFit.cover),
-            const Center(
-              child: CircularProgressIndicator(color: Color(0xFFCAB7FF)),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFE8E0FF), Color(0xFFF5F3FF)],
             ),
-          ],
+          ),
+          child: const Center(child: CircularProgressIndicator()),
         ),
       );
     }
-
-    if (_songs.isEmpty) {
-      return Scaffold(
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset('assets/images/bg_music_clouds.png', fit: BoxFit.cover),
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Color(0xFF6C6FA4),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Şarkılar yüklenemedi',
-                    style: TextStyle(fontSize: 18, color: Color(0xFF394272)),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Geri Dön'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final totalFound = isFriendsMode 
-        ? _player1FoundSongs.length + _player2FoundSongs.length
-        : _foundSongs.length;
-    final progress = totalFound / _songs.length;
 
     return Scaffold(
-      resizeToAvoidBottomInset: true,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset('assets/images/bg_music_clouds.png', fit: BoxFit.cover),
-          SafeArea(
-            child: Column(
-              children: [
-                _buildTopBar(),
-                if (isFriendsMode) _buildPlayerIndicator(),
-                _buildProgressBar(progress),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      children: [
-                        _buildSongHint(),
-                        const SizedBox(height: 20),
-                        _buildInputSection(),
-                        const SizedBox(height: 16),
-                        _buildActionButtons(),
-                        const SizedBox(height: 24),
-                      ],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFE8E0FF), Color(0xFFF5F3FF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildWordCard(),
+              if (_feedbackMessage != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: (_feedbackColor ?? Colors.grey).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _feedbackMessage!,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _feedbackColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _isFrozen ? _buildFreezeOverlay() : _buildSelectionArea(),
+              ),
+              if (_selectedSong != null && !_isFrozen)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _submitAnswer,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFCAB7FF),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cevapla',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF394272),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          // Çıkış butonu
-          GestureDetector(
-            onTap: _confirmExit,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha:0.9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.close,
-                size: 20,
-                color: Color(0xFF394272),
-              ),
-            ),
+          IconButton(
+            onPressed: () => _showExitDialog(),
+            icon: const Icon(Icons.close, color: Color(0xFF394272)),
           ),
-          const Spacer(),
-          // Süre
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: _wordSecondsLeft <= 5
-                  ? Colors.red.withValues(alpha:0.9)
-                  : Colors.white.withValues(alpha:0.9),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
+          Expanded(
+            child: Column(
               children: [
-                Icon(
-                  Icons.timer,
-                  size: 18,
-                  color: _wordSecondsLeft <= 5
-                      ? Colors.white
-                      : const Color(0xFF6C6FA4),
-                ),
-                const SizedBox(width: 4),
                 Text(
-                  '$_wordSecondsLeft',
-                  style: TextStyle(
+                  '${_solvedSongs.length} / ${_allSongs.length}',
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: _wordSecondsLeft <= 5
-                        ? Colors.white
-                        : const Color(0xFF394272),
+                    color: Color(0xFF394272),
                   ),
+                ),
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: _allSongs.isEmpty ? 0 : _solvedSongs.length / _allSongs.length,
+                  backgroundColor: Colors.white.withOpacity(0.5),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFFCAB7FF)),
                 ),
               ],
             ),
           ),
-          const Spacer(),
-          // Toplam süre
+          const SizedBox(width: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha:0.9),
+              color: _getTimerColor(),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(
-              _formatTime(_totalElapsedSeconds),
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6C6FA4),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayerIndicator() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _currentPlayer == 1
-            ? const Color(0xFFCAB7FF).withValues(alpha:0.2)
-            : const Color(0xFFFFB958).withValues(alpha:0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _currentPlayer == 1
-              ? const Color(0xFFCAB7FF)
-              : const Color(0xFFFFB958),
-          width: 2,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Player 1
-          _buildPlayerScore(
-            player: 1,
-            score: _player1FoundSongs.length,
-            isActive: _currentPlayer == 1,
-          ),
-          // VS
-          const Text(
-            'VS',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF394272),
-            ),
-          ),
-          // Player 2
-          _buildPlayerScore(
-            player: 2,
-            score: _player2FoundSongs.length,
-            isActive: _currentPlayer == 2,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayerScore({
-    required int player,
-    required int score,
-    required bool isActive,
-  }) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: isActive
-                ? (player == 1 ? const Color(0xFFCAB7FF) : const Color(0xFFFFB958))
-                : Colors.grey.shade300,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.person,
-            size: 18,
-            color: isActive ? Colors.white : Colors.grey,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Oyuncu $player',
-              style: TextStyle(
-                fontSize: 12,
-                color: isActive ? const Color(0xFF394272) : Colors.grey,
-              ),
-            ),
-            Text(
-              '$score puan',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: isActive ? const Color(0xFF394272) : Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressBar(double progress) {
-    final totalFound = isFriendsMode 
-        ? _player1FoundSongs.length + _player2FoundSongs.length
-        : _foundSongs.length;
-        
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                widget.challenge.title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF394272),
+            child: Column(
+              children: [
+                Text(
+                  _getTimerText(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              Text(
-                '$totalFound / ${_songs.length}',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6C6FA4),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: const Color(0xFFE0E0E0),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFCAB7FF)),
+                if (widget.singleMode == ChallengeSingleMode.real)
+                  Text(
+                    'Skor: $_score',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -761,407 +489,273 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
     );
   }
 
-  Widget _buildSongHint() {
-    if (_currentSong == null) return const SizedBox.shrink();
+  Color _getTimerColor() {
+    if (widget.singleMode == ChallengeSingleMode.timeRace) {
+      final remaining = _totalTimeLimit - _totalSeconds;
+      if (remaining <= 30) return Colors.red;
+      if (remaining <= 60) return Colors.orange;
+      return const Color(0xFF394272);
+    } else {
+      if (_roundSeconds <= 5) return Colors.red;
+      if (_roundSeconds <= 10) return Colors.orange;
+      return const Color(0xFF394272);
+    }
+  }
 
-    // Şarkının bir kelimesini ipucu olarak göster
-    final hintWord = _currentSong!.keywords.isNotEmpty
-        ? _currentSong!.keywords.first.toUpperCase()
-        : _currentSong!.title.split(' ').first.toUpperCase();
+  String _getTimerText() {
+    if (widget.singleMode == ChallengeSingleMode.timeRace) {
+      final remaining = _totalTimeLimit - _totalSeconds;
+      return _formatTime(remaining.clamp(0, _totalTimeLimit));
+    } else {
+      return _formatTime(_roundSeconds);
+    }
+  }
 
+  Widget _buildWordCard() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFFFE082), Color(0xFFFFCA28)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          colors: [Color(0xFFCAB7FF), Color(0xFFB8A4FF)],
         ),
-        borderRadius: BorderRadius.circular(100),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFCA28).withValues(alpha:0.4),
+            color: const Color(0xFFCAB7FF).withOpacity(0.4),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Text(
-        hintWord,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFF8C5A1F),
-          letterSpacing: 2,
+      child: Column(
+        children: [
+          const Text(
+            'KELİME',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _currentWord.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 2,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFreezeOverlay() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.pause_circle_filled, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'FREEZE',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Colors.red.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$_freezeSeconds saniye',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF394272),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildInputSection() {
+  Widget _buildSelectionArea() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.95),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.05),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          TextField(
-            controller: _songController,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-              hintText: 'Şarkı adı',
-              prefixIcon: const Icon(Icons.music_note, color: Color(0xFF6C6FA4)),
-              filled: true,
-              fillColor: const Color(0xFFF5F5FF),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _artistController,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _checkAnswer(),
-            decoration: InputDecoration(
-              hintText: 'Sanatçı',
-              prefixIcon: const Icon(Icons.person, color: Color(0xFF6C6FA4)),
-              filled: true,
-              fillColor: const Color(0xFFF5F5FF),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _checkAnswer,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFCAB7FF),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sanatçı Seç',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6C6FA4),
+                  ),
                 ),
-              ),
-              child: const Text(
-                'Kontrol Et',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF394272),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _skipSong,
-            icon: const Icon(Icons.skip_next),
-            label: const Text('Atla'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF6C6FA4),
-              side: const BorderSide(color: Color(0xFF6C6FA4)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _showHint,
-            icon: const Icon(Icons.lightbulb_outline),
-            label: const Text('İpucu'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFFFB958),
-              side: const BorderSide(color: Color(0xFFFFB958)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Challenge Friends Mode Sonuç Ekranı
-class ChallengeFriendsResultScreen extends StatelessWidget {
-  final ChallengeModel challenge;
-  final List<ChallengeSongModel> player1Songs;
-  final List<ChallengeSongModel> player2Songs;
-  final int totalSongs;
-  final int totalElapsedSeconds;
-
-  const ChallengeFriendsResultScreen({
-    super.key,
-    required this.challenge,
-    required this.player1Songs,
-    required this.player2Songs,
-    required this.totalSongs,
-    required this.totalElapsedSeconds,
-  });
-
-  String _formatTime(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final player1Score = player1Songs.length;
-    final player2Score = player2Songs.length;
-    
-    String winnerText;
-    Color winnerColor;
-    
-    if (player1Score > player2Score) {
-      winnerText = 'Oyuncu 1 Kazandı! 🎉';
-      winnerColor = const Color(0xFFCAB7FF);
-    } else if (player2Score > player1Score) {
-      winnerText = 'Oyuncu 2 Kazandı! 🎉';
-      winnerColor = const Color(0xFFFFB958);
-    } else {
-      winnerText = 'Berabere! 🤝';
-      winnerColor = const Color(0xFF6C6FA4);
-    }
-
-    return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset('assets/images/bg_music_clouds.png', fit: BoxFit.cover),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  
-                  // Kazanan
-                  Text(
-                    winnerText,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: winnerColor,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  Text(
-                    challenge.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF6C6FA4),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Skor kartları
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildPlayerCard(
-                          player: 1,
-                          score: player1Score,
-                          isWinner: player1Score > player2Score,
-                          color: const Color(0xFFCAB7FF),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildPlayerCard(
-                          player: 2,
-                          score: player2Score,
-                          isWinner: player2Score > player1Score,
-                          color: const Color(0xFFFFB958),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // İstatistikler
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha:0.9),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildStat(Icons.music_note, '${player1Score + player2Score}/$totalSongs', 'Toplam'),
-                        _buildStat(Icons.timer, _formatTime(totalElapsedSeconds), 'Süre'),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Butonlar
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.of(context).popUntil((route) => route.isFirst);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF394272),
-                            side: const BorderSide(color: Color(0xFF394272)),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 44,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _artistList.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final artist = _artistList[index];
+                      final isSelected = artist == _selectedArtist;
+                      return GestureDetector(
+                        onTap: () => _onArtistSelected(artist),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? const Color(0xFFCAB7FF) : const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(20),
+                            border: isSelected ? null : Border.all(color: const Color(0xFFE0E0E0)),
+                          ),
+                          child: Text(
+                            artist,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected ? Colors.white : const Color(0xFF394272),
                             ),
                           ),
-                          child: const Text('Ana Menü'),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ChallengeGameScreen(
-                                  challenge: challenge,
-                                  playMode: ChallengePlayMode.friends,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _selectedArtist == null
+                ? const Center(
+                    child: Text(
+                      'Önce sanatçı seç',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF6C6FA4)),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _songsForArtist.length,
+                    itemBuilder: (context, index) {
+                      final song = _songsForArtist[index];
+                      final isSelected = song.id == _selectedSong?.id;
+                      final isSolved = _solvedSongIds.contains(song.id);
+
+                      return GestureDetector(
+                        onTap: isSolved ? null : () => _onSongSelected(song),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSolved 
+                                ? Colors.green.withOpacity(0.1)
+                                : isSelected 
+                                    ? const Color(0xFFCAB7FF).withOpacity(0.2)
+                                    : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSolved
+                                  ? Colors.green
+                                  : isSelected 
+                                      ? const Color(0xFFCAB7FF)
+                                      : const Color(0xFFE0E0E0),
+                              width: isSelected || isSolved ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              if (isSolved)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 12),
+                                  child: Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                ),
+                              if (isSelected && !isSolved)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 12),
+                                  child: Icon(Icons.radio_button_checked, color: Color(0xFFCAB7FF), size: 20),
+                                ),
+                              if (!isSelected && !isSolved)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 12),
+                                  child: Icon(Icons.radio_button_off, color: Color(0xFFCCCCCC), size: 20),
+                                ),
+                              Expanded(
+                                child: Text(
+                                  song.title,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                    color: isSolved ? Colors.green.shade700 : const Color(0xFF394272),
+                                    decoration: isSolved ? TextDecoration.lineThrough : null,
+                                  ),
                                 ),
                               ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFCAB7FF),
-                            foregroundColor: const Color(0xFF394272),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            ],
                           ),
-                          child: const Text('Tekrar Oyna'),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPlayerCard({
-    required int player,
-    required int score,
-    required bool isWinner,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isWinner ? color.withValues(alpha:0.2) : Colors.white.withValues(alpha:0.9),
-        borderRadius: BorderRadius.circular(20),
-        border: isWinner ? Border.all(color: color, width: 3) : null,
-      ),
-      child: Column(
-        children: [
-          if (isWinner)
-            const Text('👑', style: TextStyle(fontSize: 32)),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, color: Colors.white, size: 32),
+  void _showExitDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Oyundan Çık'),
+        content: const Text('Oyundan çıkmak istediğine emin misin? İlerleme kaydedilmeyecek.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Devam Et'),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Oyuncu $player',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF394272),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$score',
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-          const Text(
-            'şarkı',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6C6FA4),
-            ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text('Çık', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStat(IconData icon, String value, String label) {
-    return Column(
-      children: [
-        Icon(icon, color: const Color(0xFF6C6FA4), size: 24),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF394272),
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF6C6FA4),
-          ),
-        ),
-      ],
     );
   }
 }

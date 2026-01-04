@@ -3,6 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/admin_content_service.dart';
+import '../../services/lyrics_keyword_service.dart';
+
+// ✅ Yeni eklenen ekran (aynı klasörde)
+import 'admin_content_builder_screen.dart';
 
 class DevAdminScreen extends StatefulWidget {
   const DevAdminScreen({super.key});
@@ -15,10 +19,11 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
   late final TabController _tab;
 
   final AdminContentService _admin = AdminContentService();
+  final LyricsKeywordService _extractor = LyricsKeywordService();
 
   // Basit allowlist gate (sonra custom claims’e geçersin)
   static const Set<String> _adminEmails = {
-    'your@email.com', // TODO: kendi email’in
+    'talhayildiz94@gmail.com', // TODO: kendi email’in
   };
 
   bool get _isAdmin {
@@ -38,7 +43,8 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    // ✅ 5 TAB: Import, Categories, Challenges, Songs, Builder
+    _tab = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -62,7 +68,7 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
 
     try {
       await _admin.importSeedJson(text);
-      setState(() => _importStatus = '✅ Import OK (challenges + songs + wordSets).');
+      setState(() => _importStatus = '✅ Import OK (challenges imported).');
     } catch (e) {
       setState(() => _importStatus = '❌ ERROR: $e');
     } finally {
@@ -92,11 +98,13 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
         title: const Text('Dev Admin'),
         bottom: TabBar(
           controller: _tab,
+          isScrollable: true,
           tabs: const [
             Tab(text: 'Import'),
             Tab(text: 'Categories'),
             Tab(text: 'Challenges'),
             Tab(text: 'Songs'),
+            Tab(text: 'Builder'), // ✅ yeni tab
           ],
         ),
         actions: [
@@ -118,6 +126,9 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
           _buildCategoriesTab(),
           _buildChallengesTab(),
           _buildSongsTab(),
+
+          // ✅ Direkt builder ekranı burada
+          const AdminContentBuilderScreen(),
         ],
       ),
     );
@@ -132,7 +143,7 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
       child: Column(
         children: [
           const Text(
-            'Paste seed JSON (4-challenge seed) to import.\nThis repo uses /songs (global) + challenge.songIds.',
+            'Paste seed JSON to import challenges.\n(For songs + keywords, use Builder tab.)',
             style: TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 8),
@@ -184,7 +195,9 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
               final x = d.data();
               return ListTile(
                 title: Text((x['title'] ?? d.id).toString()),
-                subtitle: Text('id=${d.id} • type=${x['type'] ?? '-'} • lang=${x['language'] ?? '-'} • active=${x['isActive'] ?? false}'),
+                subtitle: Text(
+                  'id=${d.id} • type=${x['type'] ?? '-'} • lang=${x['language'] ?? '-'} • active=${x['isActive'] ?? false} • price=${x['priceUsd'] ?? 0}',
+                ),
                 trailing: IconButton(
                   icon: const Icon(Icons.edit),
                   onPressed: () => _openCategoryEditor(d.id, x),
@@ -234,9 +247,15 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                   ),
                   Row(
                     children: [
-                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language'))),
+                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language (tr/en/de/es)'))),
                       const SizedBox(width: 8),
-                      Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'priceUsd'))),
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'priceUsd'),
+                        ),
+                      ),
                     ],
                   ),
                   TextField(controller: sortCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'sortOrder')),
@@ -255,7 +274,8 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
               TextButton(
                 onPressed: () async {
                   await _admin.deleteCategory(id);
-                  if (mounted) Navigator.pop(context);
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
                 },
                 child: const Text('Delete'),
               ),
@@ -275,7 +295,8 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                   isActive: active,
                   sortOrder: int.tryParse(sortCtrl.text.trim()) ?? 0,
                 );
-                if (mounted) Navigator.pop(context);
+                if (!context.mounted) return;
+                Navigator.pop(context);
               },
               child: const Text('Save'),
             ),
@@ -305,16 +326,21 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
             final totalSongs = (x['totalSongs'] ?? 0);
             return ListTile(
               title: Text((x['title'] ?? d.id).toString()),
-              subtitle: Text('id=${d.id} • cat=${x['categoryId'] ?? '-'} • lang=${x['language'] ?? '-'} • songs=$totalSongs • active=${x['isActive'] ?? false}'),
+              subtitle: Text(
+                'id=${d.id} • cat=${x['categoryId'] ?? '-'} • lang=${x['language'] ?? '-'} • songs=$totalSongs • active=${x['isActive'] ?? false}',
+              ),
               trailing: PopupMenuButton<String>(
                 onSelected: (v) async {
                   if (v == 'edit') {
                     await _openChallengeEditor(d.id, x);
                   } else if (v == 'rebuild') {
                     await _admin.rebuildChallengeSongIds(d.id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rebuilt songIds.')));
-                    }
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rebuilt songIds.')));
+                  } else if (v == 'rebuild_index') {
+                    final count = await _admin.buildWordIndex(d.id);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Word index built: $count words.')));
                   } else if (v == 'delete') {
                     await _admin.deleteChallenge(d.id);
                   }
@@ -322,6 +348,7 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'edit', child: Text('Edit')),
                   PopupMenuItem(value: 'rebuild', child: Text('Rebuild songIds')),
+                  PopupMenuItem(value: 'rebuild_index', child: Text('Build Word Index')),
                   PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),
@@ -363,9 +390,15 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                   ),
                   Row(
                     children: [
-                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language'))),
+                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language (tr/en/de/es)'))),
                       const SizedBox(width: 8),
-                      Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'priceUsd'))),
+                      Expanded(
+                        child: TextField(
+                          controller: priceCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'priceUsd'),
+                        ),
+                      ),
                     ],
                   ),
                   SwitchListTile(
@@ -398,7 +431,8 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                   'isActive': active,
                   'isFree': isFree,
                 });
-                if (mounted) Navigator.pop(context);
+                if (!context.mounted) return;
+                Navigator.pop(context);
               },
               child: const Text('Save'),
             ),
@@ -448,7 +482,9 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                   final keywords = (x['keywords'] as List<dynamic>? ?? const <dynamic>[]).length;
                   return ListTile(
                     title: Text('${x['artist'] ?? ''} — ${x['title'] ?? ''}'),
-                    subtitle: Text('id=${d.id} • challengeId=${x['challengeId'] ?? '-'} • year=${x['year'] ?? '-'} • keywords=$keywords'),
+                    subtitle: Text(
+                      'id=${d.id} • cat=${x['categoryId'] ?? '-'} • challengeId=${x['challengeId'] ?? '-'} • lang=${x['language'] ?? '-'} • keywords=$keywords',
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.edit),
                       onPressed: () => _openSongEditor(d.id, x),
@@ -474,21 +510,48 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
 
   Future<void> _openSongEditor(String songId, Map<String, dynamic> data) async {
     final idCtrl = TextEditingController(text: songId);
+    final categoryIdCtrl = TextEditingController(text: (data['categoryId'] ?? '').toString());
     final challengeIdCtrl = TextEditingController(text: (data['challengeId'] ?? '').toString());
+    final langCtrl = TextEditingController(text: (data['language'] ?? 'tr').toString());
+
     final artistCtrl = TextEditingController(text: (data['artist'] ?? '').toString());
     final titleCtrl = TextEditingController(text: (data['title'] ?? '').toString());
     final yearCtrl = TextEditingController(text: (data['year'] ?? 2000).toString());
     final albumCtrl = TextEditingController(text: (data['album'] ?? '').toString());
     final previewCtrl = TextEditingController(text: (data['previewUrl'] ?? '').toString());
 
-    final List<String> keywords = (data['keywords'] as List<dynamic>? ?? const <dynamic>[])
+    final lyricsCtrl = TextEditingController(text: (data['lyricsRaw'] ?? '').toString());
+
+    bool removeStopwords = true;
+
+    List<String> keywords = (data['keywords'] as List<dynamic>? ?? const <dynamic>[])
         .map((e) => e.toString().trim())
         .where((e) => e.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
 
+    List<String> topKeywords = (data['topKeywords'] as List<dynamic>? ?? const <dynamic>[])
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
     final addCtrl = TextEditingController();
+
+    void regenerate(StateSetter setLocal) {
+      final res = _extractor.extract(
+        lyricsRaw: lyricsCtrl.text,
+        languageCode: langCtrl.text.trim().isEmpty ? 'tr' : langCtrl.text.trim(),
+        removeStopwords: removeStopwords,
+        minTokenLength: 2,
+        maxTopKeywords: 180,
+      );
+
+      setLocal(() {
+        keywords = res.keywords;
+        topKeywords = res.topKeywords;
+      });
+    }
 
     await showDialog<void>(
       context: context,
@@ -496,14 +559,37 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
         builder: (context, setLocal) => AlertDialog(
           title: Text(songId.isEmpty ? 'New Song' : 'Edit Song'),
           content: SizedBox(
-            width: 560,
+            width: 620,
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   TextField(controller: idCtrl, enabled: songId.isEmpty, decoration: const InputDecoration(labelText: 'songId (doc id)')),
-                  TextField(controller: challengeIdCtrl, decoration: const InputDecoration(labelText: 'challengeId')),
+
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: categoryIdCtrl, decoration: const InputDecoration(labelText: 'categoryId'))),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(controller: challengeIdCtrl, decoration: const InputDecoration(labelText: 'challengeId'))),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: langCtrl, decoration: const InputDecoration(labelText: 'language (tr/en/de/es)'))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Remove stopwords'),
+                          value: removeStopwords,
+                          onChanged: (v) => setLocal(() => removeStopwords = v),
+                        ),
+                      ),
+                    ],
+                  ),
+
                   TextField(controller: artistCtrl, decoration: const InputDecoration(labelText: 'artist')),
                   TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'title')),
+
                   Row(
                     children: [
                       Expanded(child: TextField(controller: yearCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'year'))),
@@ -512,6 +598,30 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                     ],
                   ),
                   TextField(controller: previewCtrl, decoration: const InputDecoration(labelText: 'previewUrl (optional)')),
+
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: lyricsCtrl,
+                    maxLines: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'lyricsRaw',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => regenerate(setLocal),
+                          icon: const Icon(Icons.auto_awesome),
+                          label: const Text('Generate keywords from lyrics'),
+                        ),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 12),
                   const Align(
@@ -525,10 +635,14 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                     children: keywords
                         .map((w) => Chip(
                               label: Text(w),
-                              onDeleted: () => setLocal(() => keywords.remove(w)),
+                              onDeleted: () => setLocal(() {
+                                keywords.remove(w);
+                                topKeywords.remove(w);
+                              }),
                             ))
                         .toList(),
                   ),
+
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -545,21 +659,37 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                           if (raw.isEmpty) return;
                           final parts = raw
                               .split(RegExp(r'[,\s]+'))
-                              .map((e) => e.trim())
+                              .map((e) => e.trim().toLowerCase())
                               .where((e) => e.isNotEmpty)
                               .toList();
+
                           setLocal(() {
-                            keywords.addAll(parts);
-                            final uniq = keywords.toSet().toList()..sort();
-                            keywords
-                              ..clear()
-                              ..addAll(uniq);
+                            keywords = {...keywords, ...parts}.toList()..sort();
+                            topKeywords = {...parts, ...topKeywords}.toList().take(220).toList();
                             addCtrl.clear();
                           });
                         },
                         child: const Text('Add'),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Top keywords (game pool)', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: topKeywords
+                        .map((w) => Chip(
+                              label: Text(w),
+                              deleteIcon: const Icon(Icons.close),
+                              onDeleted: () => setLocal(() => topKeywords.remove(w)),
+                            ))
+                        .toList(),
                   ),
                 ],
               ),
@@ -570,7 +700,8 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
               TextButton(
                 onPressed: () async {
                   await _admin.deleteSong(songId);
-                  if (mounted) Navigator.pop(context);
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
                 },
                 child: const Text('Delete'),
               ),
@@ -580,18 +711,42 @@ class _DevAdminScreenState extends State<DevAdminScreen> with SingleTickerProvid
                 final newId = idCtrl.text.trim();
                 if (newId.isEmpty) return;
 
+                final cid = categoryIdCtrl.text.trim();
+                final chid = challengeIdCtrl.text.trim();
+                final lang = langCtrl.text.trim().isEmpty ? 'tr' : langCtrl.text.trim();
+
+                if (cid.isEmpty || chid.isEmpty) return;
+
+                // if keywords empty, generate once
+                if (keywords.isEmpty && lyricsCtrl.text.trim().isNotEmpty) {
+                  final res = _extractor.extract(
+                    lyricsRaw: lyricsCtrl.text,
+                    languageCode: lang,
+                    removeStopwords: removeStopwords,
+                    minTokenLength: 2,
+                    maxTopKeywords: 180,
+                  );
+                  keywords = res.keywords;
+                  topKeywords = res.topKeywords;
+                }
+
                 await _admin.upsertSong(
                   songId: newId,
-                  challengeId: challengeIdCtrl.text.trim(),
-                  title: titleCtrl.text.trim(),
+                  categoryId: cid,
+                  challengeId: chid,
+                  languageCode: lang,
                   artist: artistCtrl.text.trim(),
+                  title: titleCtrl.text.trim(),
+                  lyricsRaw: lyricsCtrl.text,
+                  keywords: keywords,
+                  topKeywords: topKeywords.isNotEmpty ? topKeywords : keywords.take(180).toList(),
                   year: int.tryParse(yearCtrl.text.trim()) ?? 2000,
                   album: albumCtrl.text.trim().isEmpty ? null : albumCtrl.text.trim(),
                   previewUrl: previewCtrl.text.trim().isEmpty ? null : previewCtrl.text.trim(),
-                  keywords: keywords,
                 );
 
-                if (mounted) Navigator.pop(context);
+                if (!context.mounted) return;
+                Navigator.pop(context);
               },
               child: const Text('Save'),
             ),

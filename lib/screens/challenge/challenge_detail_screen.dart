@@ -6,10 +6,9 @@ import '../../models/user_model.dart';
 import '../../services/challenge_service.dart';
 import '../../services/access_control_service.dart';
 import '../../services/pricing_service.dart';
+import 'challenge_mode_select_screen.dart';
 import 'challenge_game_screen.dart';
-
-/// Challenge oyun modu
-enum ChallengePlayMode { solo, friends }
+import 'leaderboard_screen.dart';
 
 class ChallengeDetailScreen extends StatefulWidget {
   final ChallengeModel challenge;
@@ -250,13 +249,26 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildStatCard(
-            icon: Icons.play_circle,
-            label: 'Oynama',
-            value: '${widget.challenge.playCount}',
+          child: GestureDetector(
+            onTap: () => _openLeaderboard(),
+            child: _buildStatCard(
+              icon: Icons.emoji_events,
+              label: 'Sıralama',
+              value: 'Gör',
+              highlight: true,
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  void _openLeaderboard() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LeaderboardScreen(challenge: widget.challenge),
+      ),
     );
   }
 
@@ -264,12 +276,18 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
     required IconData icon,
     required String label,
     required String value,
+    bool highlight = false,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.9),
+        color: highlight 
+            ? const Color(0xFFFFB958).withOpacity(0.15)
+            : Colors.white.withValues(alpha:0.9),
         borderRadius: BorderRadius.circular(16),
+        border: highlight 
+            ? Border.all(color: const Color(0xFFFFB958), width: 2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha:0.05),
@@ -280,14 +298,14 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: const Color(0xFF6C6FA4), size: 24),
+          Icon(icon, color: highlight ? const Color(0xFFFFB958) : const Color(0xFF6C6FA4), size: 24),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF394272),
+              color: highlight ? const Color(0xFFFFB958) : const Color(0xFF394272),
             ),
           ),
           Text(
@@ -864,24 +882,24 @@ class _PlayModeSheetState extends State<_PlayModeSheet> {
     Navigator.pop(context); // Sheet'i kapat
 
     if (_selectedMode == ChallengePlayMode.solo) {
-      // Tek kişilik oyun
+      // Tek kişilik - mod seçim ekranına git
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ChallengeGameScreen(
+          builder: (_) => ChallengeModeSelectScreen(
             challenge: widget.challenge,
-            playMode: ChallengePlayMode.solo,
           ),
         ),
       );
     } else {
-      // Arkadaşla oyun
+      // Arkadaşla oyun - direkt relax modunda başla
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => ChallengeGameScreen(
             challenge: widget.challenge,
             playMode: ChallengePlayMode.friends,
+            singleMode: ChallengeSingleMode.relax,
           ),
         ),
       );

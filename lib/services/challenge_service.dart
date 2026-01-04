@@ -431,4 +431,278 @@ class ChallengeService {
 
     return songRef.id;
   }
+
+  // ==================== GAME PLAY METHODS (NEW) ====================
+
+  /// Get all songs for a challenge from flat songs collection
+  Future<List<ChallengeSongModel>> getSongsForChallenge(String challengeId) async {
+    final snapshot = await _songsRef
+        .where('challengeId', isEqualTo: challengeId)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => ChallengeSongModel.fromFirestore(doc))
+        .toList();
+  }
+
+  /// Get random eligible word using word index
+  Future<String?> getEligibleWord(String challengeId, List<String> solvedSongIds) async {
+    final indexDocs = await _wordIndexRef
+        .where('challengeId', isEqualTo: challengeId)
+        .get();
+
+    if (indexDocs.docs.isEmpty) {
+      // Fallback: get word directly from songs
+      return _getWordFromSongs(challengeId, solvedSongIds);
+    }
+
+    // Filter words that have unsolved songs
+    final eligibleWords = <String>[];
+    
+    for (final doc in indexDocs.docs) {
+      final songIds = List<String>.from(doc.data()['songIds'] ?? []);
+      final hasUnsolved = songIds.any((id) => !solvedSongIds.contains(id));
+      if (hasUnsolved) {
+        eligibleWords.add(doc.data()['word'] ?? '');
+      }
+    }
+
+    if (eligibleWords.isEmpty) return null;
+
+    // Random selection
+    final index = _random.nextInt(eligibleWords.length);
+    return eligibleWords[index];
+  }
+
+  /// Fallback: get word directly from songs
+  Future<String?> _getWordFromSongs(String challengeId, List<String> solvedSongIds) async {
+    final songs = await getSongsForChallenge(challengeId);
+    final unsolvedSongs = songs.where((s) => !solvedSongIds.contains(s.id)).toList();
+    
+    if (unsolvedSongs.isEmpty) return null;
+
+    // Collect all keywords from unsolved songs
+    final allWords = <String>[];
+    for (final song in unsolvedSongs) {
+      allWords.addAll(song.topKeywords.isNotEmpty ? song.topKeywords : song.keywords);
+    }
+
+    if (allWords.isEmpty) return null;
+
+    final index = _random.nextInt(allWords.length);
+    return allWords[index];
+  }
+
+  /// Validate song selection - check if the word belongs to the selected song
+  Future<bool> validateSelection(String challengeId, String word, String songId) async {
+    final normalizedWord = word.toLowerCase().trim();
+    
+    // First try word index
+    final docId = '${challengeId}_$normalizedWord';
+    final indexDoc = await _wordIndexRef.doc(docId).get();
+    
+    if (indexDoc.exists) {
+      final songIds = List<String>.from(indexDoc.data()?['songIds'] ?? []);
+      return songIds.contains(songId);
+    }
+
+    // Fallback: check song directly
+    final songDoc = await _songsRef.doc(songId).get();
+    if (!songDoc.exists) return false;
+
+    final song = ChallengeSongModel.fromFirestore(songDoc);
+    return song.containsWord(word);
+  }
+
+  /// Get songs that contain a specific word
+  Future<List<String>> getSongsForWord(String challengeId, String word) async {
+    final normalizedWord = word.toLowerCase().trim();
+    final docId = '${challengeId}_$normalizedWord';
+    
+    final indexDoc = await _wordIndexRef.doc(docId).get();
+    if (indexDoc.exists) {
+      return List<String>.from(indexDoc.data()?['songIds'] ?? []);
+    }
+
+    // Fallback: search songs directly
+    final songs = await getSongsForChallenge(challengeId);
+    return songs
+        .where((s) => s.containsWord(word))
+        .map((s) => s.id)
+        .toList();
+  }
+
+  // ==================== CHALLENGE RUNS & LEADERBOARD ====================
+
+  /// Save a challenge run
+  Future<String> saveChallengeRun(ChallengeRunModel run) async {
+    final docRef = await _challengeRunsRef.add(run.toFirestore());
+    
+    // Update leaderboard if Real mode and finished
+    if (run.mode == 'real' && run.finished) {
+      await _updateLeaderboard(run);
+    }
+    
+    return docRef.id;
+  }
+
+  /// Update leaderboard for Real mode
+  Future<void> _updateLeaderboard(ChallengeRunModel run) async {
+    final leaderboardRef = _db
+        .collection('leaderboards')
+        .doc(run.challengeId)
+        .collection('real')
+        .doc(run.uid);
+
+    final existing = await leaderboardRef.get();
+    
+    if (!existing.exists) {
+      await leaderboardRef.set({
+        'uid': run.uid,
+        'bestScore': run.score,
+        'bestDurationMs': run.durationMs,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      final currentBest = existing.data()?['bestScore'] ?? 0;
+      if (run.score > currentBest) {
+        await leaderboardRef.update({
+          'bestScore': run.score,
+          'bestDurationMs': run.durationMs,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  /// Get leaderboard for a challenge (Real mode only)
+  Future<List<LeaderboardEntry>> getLeaderboard(String challengeId, {int limit = 50}) async {
+    final snapshot = await _db
+        .collection('leaderboards')
+        .doc(challengeId)
+        .collection('real')
+        .orderBy('bestScore', descending: true)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs.map((doc) => LeaderboardEntry.fromFirestore(doc)).toList();
+  }
+
+  /// Get user's rank on leaderboard
+  Future<int?> getUserRank(String challengeId, String uid) async {
+    final userDoc = await _db
+        .collection('leaderboards')
+        .doc(challengeId)
+        .collection('real')
+        .doc(uid)
+        .get();
+
+    if (!userDoc.exists) return null;
+
+    final userScore = userDoc.data()?['bestScore'] ?? 0;
+    
+    final higherScores = await _db
+        .collection('leaderboards')
+        .doc(challengeId)
+        .collection('real')
+        .where('bestScore', isGreaterThan: userScore)
+        .count()
+        .get();
+
+    return (higherScores.count ?? 0) + 1;
+  }
+
+  /// Get user's challenge runs
+  Future<List<ChallengeRunModel>> getUserRuns(String uid, String challengeId) async {
+    final snapshot = await _challengeRunsRef
+        .where('uid', isEqualTo: uid)
+        .where('challengeId', isEqualTo: challengeId)
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .get();
+
+    return snapshot.docs.map((doc) => ChallengeRunModel.fromFirestore(doc)).toList();
+  }
+}
+
+/// Challenge run model
+class ChallengeRunModel {
+  final String id;
+  final String uid;
+  final String challengeId;
+  final String mode; // 'timeRace', 'relax', 'real'
+  final int score;
+  final int correct;
+  final int wrong;
+  final int durationMs;
+  final bool finished;
+  final DateTime createdAt;
+
+  ChallengeRunModel({
+    required this.id,
+    required this.uid,
+    required this.challengeId,
+    required this.mode,
+    required this.score,
+    required this.correct,
+    required this.wrong,
+    required this.durationMs,
+    required this.finished,
+    required this.createdAt,
+  });
+
+  factory ChallengeRunModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return ChallengeRunModel(
+      id: doc.id,
+      uid: data['uid'] ?? '',
+      challengeId: data['challengeId'] ?? '',
+      mode: data['mode'] ?? 'relax',
+      score: data['score'] ?? 0,
+      correct: data['correct'] ?? 0,
+      wrong: data['wrong'] ?? 0,
+      durationMs: data['durationMs'] ?? 0,
+      finished: data['finished'] ?? false,
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'uid': uid,
+      'challengeId': challengeId,
+      'mode': mode,
+      'score': score,
+      'correct': correct,
+      'wrong': wrong,
+      'durationMs': durationMs,
+      'finished': finished,
+      'createdAt': Timestamp.fromDate(createdAt),
+    };
+  }
+}
+
+/// Leaderboard entry
+class LeaderboardEntry {
+  final String uid;
+  final int bestScore;
+  final int bestDurationMs;
+  final DateTime updatedAt;
+
+  LeaderboardEntry({
+    required this.uid,
+    required this.bestScore,
+    required this.bestDurationMs,
+    required this.updatedAt,
+  });
+
+  factory LeaderboardEntry.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return LeaderboardEntry(
+      uid: doc.id,
+      bestScore: data['bestScore'] ?? 0,
+      bestDurationMs: data['bestDurationMs'] ?? 0,
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
 }

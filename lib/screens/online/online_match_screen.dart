@@ -9,14 +9,14 @@ import '../../services/player_id_service.dart';
 import 'waiting_screen.dart';
 
 class OnlineMatchScreen extends StatefulWidget {
-  final String? prefillOpponentId;
+  final String? prefilledOpponentId;
   final MatchMode mode;
   final String? challengeId;
   final ModeVariant? modeVariant;
 
   const OnlineMatchScreen({
     super.key,
-    this.prefillOpponentId,
+    this.prefilledOpponentId,
     this.mode = MatchMode.friendsWord,
     this.challengeId,
     this.modeVariant,
@@ -39,8 +39,8 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
   void initState() {
     super.initState();
     _loadMyPlayerId();
-    if (widget.prefillOpponentId != null) {
-      _opponentIdController.text = widget.prefillOpponentId!;
+    if (widget.prefilledOpponentId != null) {
+      _opponentIdController.text = widget.prefilledOpponentId!;
     }
   }
 

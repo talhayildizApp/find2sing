@@ -6,6 +6,7 @@ enum ChallengeType {
   album,     // Albüm challenge
   playlist,  // Playlist/Tema challenge (90'lar, Rock...)
   mixed,     // Karışık
+  era,       // Dönem challenge (90'lar, 2000'ler)
 }
 
 /// Challenge zorluğu
@@ -15,31 +16,44 @@ enum ChallengeDifficulty {
   hard,    // Zor - az bilinen şarkılar
 }
 
+/// Challenge oyun modu
+enum ChallengePlayMode {
+  solo,           // Tek oyunculu (aynı cihaz, mod seçimi sonra)
+  friends,        // Arkadaşla (aynı cihaz)
+  onlineTimeRace, // Online Time Race
+  onlineRelax,    // Online Relax
+  onlineReal,     // Online Real
+}
+
+/// Single-player challenge modları
+enum ChallengeSingleMode {
+  timeRace,  // Sabit süre (5dk), yanlış = 3s freeze
+  relax,     // 30s/round, yanlış = 1s freeze (her 3 yanlışta +1s)
+  real,      // 30s/round, doğru +1, yanlış -3 (leaderboard'a gider)
+}
+
 /// Tek bir Challenge
 class ChallengeModel {
   final String id;
-  final String categoryId; // Hangi kategoriye ait
-  final String title; // "Tarkan Challenge"
-  final String? subtitle; // "90'ların efsanesi"
+  final String categoryId;
+  final String title;
+  final String? subtitle;
   final String? description;
-  final String? imageUrl; // Kapak görseli
+  final String? imageUrl;
   final ChallengeType type;
   final ChallengeDifficulty difficulty;
-  final String language; // 'tr' veya 'en'
+  final String language;
   
-  // Challenge içeriği
-  final List<String> songIds; // Şarkı ID'leri
-  final int totalSongs; // Toplam şarkı sayısı
+  final List<String> songIds;
+  final int totalSongs;
   
-  // Fiyatlandırma
-  final double priceUsd; // $0.99
-  final bool isFree; // Ücretsiz mi?
+  final double priceUsd;
+  final bool isFree;
   
-  // Meta
-  final bool isActive; // Yayında mı?
+  final bool isActive;
   final DateTime createdAt;
   final DateTime? updatedAt;
-  final int playCount; // Kaç kez oynandı
+  final int playCount;
 
   ChallengeModel({
     required this.id,
@@ -112,7 +126,6 @@ class ChallengeModel {
     };
   }
 
-  /// Zorluk etiketi
   String get difficultyLabel {
     switch (difficulty) {
       case ChallengeDifficulty.easy:
@@ -124,7 +137,6 @@ class ChallengeModel {
     }
   }
 
-  /// Tür etiketi
   String get typeLabel {
     switch (type) {
       case ChallengeType.artist:
@@ -135,6 +147,8 @@ class ChallengeModel {
         return 'Playlist';
       case ChallengeType.mixed:
         return 'Karışık';
+      case ChallengeType.era:
+        return 'Dönem';
     }
   }
 }
@@ -142,24 +156,21 @@ class ChallengeModel {
 /// Challenge Kategorisi
 class CategoryModel {
   final String id;
-  final String title; // "Türkçe Pop"
+  final String title;
   final String? subtitle;
   final String? description;
   final String? imageUrl;
-  final String language; // 'tr' veya 'en'
-  final String? iconEmoji; // 🎤
+  final String language;
+  final String? iconEmoji;
   
-  // İçerik
-  final int challengeCount; // Bu kategorideki challenge sayısı
-  final List<String> challengeIds; // Challenge ID'leri
+  final int challengeCount;
+  final List<String> challengeIds;
   
-  // Fiyatlandırma
-  final double priceUsd; // Hesaplanmış kategori fiyatı
-  final double discountPercent; // %40 indirim
+  final double priceUsd;
+  final double discountPercent;
   
-  // Meta
   final bool isActive;
-  final int sortOrder; // Sıralama
+  final int sortOrder;
   final DateTime createdAt;
 
   CategoryModel({
@@ -218,10 +229,7 @@ class CategoryModel {
     };
   }
 
-  /// Normal fiyat (indirim öncesi)
   double get originalPrice => challengeCount * 0.99;
-
-  /// Tasarruf miktarı
   double get savings => originalPrice - priceUsd;
 }
 
@@ -230,15 +238,15 @@ class ChallengeProgressModel {
   final String id;
   final String oderId;
   final String challengeId;
-  final int foundSongs; // Bulunan şarkı sayısı
-  final int totalSongs; // Toplam şarkı sayısı
-  final List<String> foundSongIds; // Bulunan şarkı ID'leri
-  final int bestTime; // En iyi süre (saniye)
-  final bool isCompleted; // Tamamlandı mı?
+  final int foundSongs;
+  final int totalSongs;
+  final List<String> foundSongIds;
+  final int bestTime;
+  final bool isCompleted;
   final DateTime? completedAt;
   final DateTime startedAt;
   final DateTime lastPlayedAt;
-  final int playCount; // Kaç kez oynandı
+  final int playCount;
 
   ChallengeProgressModel({
     required this.id,
@@ -290,58 +298,95 @@ class ChallengeProgressModel {
     };
   }
 
-  /// İlerleme yüzdesi
   double get progressPercent {
     if (totalSongs == 0) return 0;
     return (foundSongs / totalSongs) * 100;
   }
 
-  /// Tamamlanma oranı metni
   String get progressText => '$foundSongs / $totalSongs';
 }
 
-/// Challenge içindeki şarkı
+/// Challenge içindeki şarkı (UPDATED - topKeywords, lyricsRaw dahil)
 class ChallengeSongModel {
   final String id;
-  final String title; // Şarkı adı
-  final String artist; // Sanatçı
-  final String? album; // Albüm (opsiyonel)
-  final List<String> keywords; // Anahtar kelimeler (eşleşme için)
-  final int year; // Çıkış yılı
-  final String? previewUrl; // Şarkı önizleme (opsiyonel)
+  final String categoryId;
+  final String challengeId;
+  final String language;
+  final String title;
+  final String artist;
+  final String? album;
+  final int year;
+  final String? previewUrl;
+  final String? lyricsRaw;
+  final List<String> keywords;      // Unique, sorted (tümü)
+  final List<String> topKeywords;   // Ranked by frequency (oyunda kullanılacak)
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   ChallengeSongModel({
     required this.id,
+    required this.categoryId,
+    required this.challengeId,
+    required this.language,
     required this.title,
     required this.artist,
     this.album,
-    required this.keywords,
     required this.year,
     this.previewUrl,
-  });
+    this.lyricsRaw,
+    required this.keywords,
+    List<String>? topKeywords,
+    this.createdAt,
+    this.updatedAt,
+  }) : topKeywords = topKeywords ?? keywords;
 
   factory ChallengeSongModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final kw = List<String>.from(data['keywords'] ?? []);
     
     return ChallengeSongModel(
       id: doc.id,
+      categoryId: data['categoryId'] ?? '',
+      challengeId: data['challengeId'] ?? '',
+      language: data['language'] ?? 'tr',
       title: data['title'] ?? '',
       artist: data['artist'] ?? '',
       album: data['album'],
-      keywords: List<String>.from(data['keywords'] ?? []),
       year: data['year'] ?? 0,
       previewUrl: data['previewUrl'],
+      lyricsRaw: data['lyricsRaw'],
+      keywords: kw,
+      topKeywords: List<String>.from(data['topKeywords'] ?? kw),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
   Map<String, dynamic> toFirestore() {
     return {
+      'id': id,
+      'categoryId': categoryId,
+      'challengeId': challengeId,
+      'language': language,
       'title': title,
       'artist': artist,
       'album': album,
-      'keywords': keywords,
       'year': year,
       'previewUrl': previewUrl,
+      'lyricsRaw': lyricsRaw,
+      'keywords': keywords,
+      'topKeywords': topKeywords,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     };
+  }
+
+  String get displayName => '$artist - $title';
+  
+  /// Şarkının belirli bir kelimeyi içerip içermediğini kontrol et
+  bool containsWord(String word) {
+    final normalizedWord = word.toLowerCase().trim();
+    return topKeywords.any((k) => k.toLowerCase() == normalizedWord) ||
+           keywords.any((k) => k.toLowerCase() == normalizedWord);
   }
 }
