@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/match_intent_model.dart';
-import '../models/game_room_model.dart';
 import 'player_id_service.dart';
 
 class MatchmakingService {
@@ -21,6 +20,11 @@ class MatchmakingService {
     required MatchMode mode,
     String? challengeId,
     ModeVariant? modeVariant,
+    String? endCondition,
+    int? targetRounds,
+    int? timeMinutes,
+    int? wordTimerSeconds,
+    int? skipCount,
   }) async {
     // Validate toPlayerId exists
     final targetUser = await _playerIdService.getUserByPlayerId(toPlayerId);
@@ -48,6 +52,11 @@ class MatchmakingService {
       modeVariant: modeVariant,
       createdAt: DateTime.now(),
       status: IntentStatus.waiting,
+      endCondition: endCondition,
+      targetRounds: targetRounds,
+      timeMinutes: timeMinutes,
+      wordTimerSeconds: wordTimerSeconds,
+      skipCount: skipCount,
     );
 
     await intentDoc.set(intent.toFirestore());
@@ -176,6 +185,30 @@ class MatchmakingService {
       }
     }
 
+    // Add friends word game end conditions
+    if (intent1.mode == MatchMode.friendsWord) {
+      // Use the more restrictive (min) settings for fairness
+      // If one player has null, use the other's value, otherwise use min
+      final endCondition = intent1.endCondition ?? intent2.endCondition ?? 'songCount';
+
+      // For numeric values: use min of both (more restrictive = fairer)
+      final targetRounds = _minOfTwo(intent1.targetRounds, intent2.targetRounds) ?? 10;
+      final timeMinutes = _minOfTwo(intent1.timeMinutes, intent2.timeMinutes) ?? 5;
+      final wordTimerSeconds = _minOfTwo(intent1.wordTimerSeconds, intent2.wordTimerSeconds) ?? 30;
+      final skipCount = _minOfTwo(intent1.skipCount, intent2.skipCount) ?? 0;
+
+      roomData['endCondition'] = endCondition;
+      roomData['targetRounds'] = targetRounds;
+      roomData['timeMinutes'] = timeMinutes;
+      roomData['wordTimerSeconds'] = wordTimerSeconds;
+      roomData['skipCount'] = skipCount;
+
+      // Set endsAt for time-based mode
+      if (endCondition == 'time') {
+        roomData['endsAt'] = Timestamp.fromDate(now.add(Duration(minutes: timeMinutes)));
+      }
+    }
+
     await roomDoc.set(roomData);
 
     // Create first round document
@@ -211,6 +244,13 @@ class MatchmakingService {
       'RÜYA', 'KALP', 'YALAN', 'SEVER', 'ÖZLEM', 'UNUTMA', 'HATIRA',
     ];
     return defaultWords[DateTime.now().millisecond % defaultWords.length];
+  }
+
+  /// Helper: returns min of two nullable ints, or the non-null one, or null if both null
+  int? _minOfTwo(int? a, int? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a < b ? a : b;
   }
 
   /// Stream intent status
@@ -272,8 +312,8 @@ class MatchmakingService {
     required String challengeId,
     ModeVariant modeVariant = ModeVariant.relax,
   }) async {
-    // Get my player ID
-    final myPlayerId = await _playerIdService.getPlayerId(oderId);
+    // Get my player ID (ensurePlayerId creates if missing)
+    final myPlayerId = await _playerIdService.ensurePlayerId(oderId);
     if (myPlayerId == null) {
       throw Exception('Oyuncu ID\'niz bulunamadı');
     }

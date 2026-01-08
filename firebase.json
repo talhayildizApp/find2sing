@@ -1,1 +1,49 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"find2sing","appId":"1:1038132803886:android:7257ebb0021a4d943822bf","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"find2sing","configurations":{"android":"1:1038132803886:android:7257ebb0021a4d943822bf","ios":"1:1038132803886:ios:33ed47119360f46f3822bf","macos":"1:1038132803886:ios:b8d977a80626b25e3822bf","web":"1:1038132803886:web:6451a1b98ae8b9be3822bf","windows":"1:1038132803886:web:feff9aeb747374043822bf"}}},"ios":{"default":{"projectId":"find2sing","appId":"1:1038132803886:ios:33ed47119360f46f3822bf","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"find2sing","appId":"1:1038132803886:ios:b8d977a80626b25e3822bf","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "find2sing",
+          "appId": "1:1038132803886:android:7257ebb0021a4d943822bf",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "find2sing",
+          "configurations": {
+            "android": "1:1038132803886:android:7257ebb0021a4d943822bf",
+            "ios": "1:1038132803886:ios:33ed47119360f46f3822bf",
+            "macos": "1:1038132803886:ios:b8d977a80626b25e3822bf",
+            "web": "1:1038132803886:web:6451a1b98ae8b9be3822bf",
+            "windows": "1:1038132803886:web:feff9aeb747374043822bf"
+          }
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "find2sing",
+          "appId": "1:1038132803886:ios:33ed47119360f46f3822bf",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "find2sing",
+          "appId": "1:1038132803886:ios:b8d977a80626b25e3822bf",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}

@@ -30,6 +30,13 @@ class MatchIntentModel {
   final IntentStatus status;
   final String? roomId;
 
+  // Friends word game end conditions
+  final String? endCondition; // 'songCount' or 'time'
+  final int? targetRounds; // for songCount mode
+  final int? timeMinutes; // for time mode
+  final int? wordTimerSeconds; // guess time per turn
+  final int? skipCount; // word skip allowance
+
   MatchIntentModel({
     required this.id,
     required this.fromUid,
@@ -41,6 +48,11 @@ class MatchIntentModel {
     required this.createdAt,
     required this.status,
     this.roomId,
+    this.endCondition,
+    this.targetRounds,
+    this.timeMinutes,
+    this.wordTimerSeconds,
+    this.skipCount,
   });
 
   factory MatchIntentModel.fromFirestore(DocumentSnapshot doc) {
@@ -67,6 +79,11 @@ class MatchIntentModel {
         orElse: () => IntentStatus.waiting,
       ),
       roomId: data['roomId'],
+      endCondition: data['endCondition'],
+      targetRounds: data['targetRounds'],
+      timeMinutes: data['timeMinutes'],
+      wordTimerSeconds: data['wordTimerSeconds'],
+      skipCount: data['skipCount'],
     );
   }
 
@@ -81,6 +98,11 @@ class MatchIntentModel {
       'createdAt': Timestamp.fromDate(createdAt),
       'status': status.name,
       'roomId': roomId,
+      'endCondition': endCondition,
+      'targetRounds': targetRounds,
+      'timeMinutes': timeMinutes,
+      'wordTimerSeconds': wordTimerSeconds,
+      'skipCount': skipCount,
     };
   }
 
@@ -99,6 +121,11 @@ class MatchIntentModel {
       createdAt: createdAt,
       status: status ?? this.status,
       roomId: roomId ?? this.roomId,
+      endCondition: endCondition,
+      targetRounds: targetRounds,
+      timeMinutes: timeMinutes,
+      wordTimerSeconds: wordTimerSeconds,
+      skipCount: skipCount,
     );
   }
 

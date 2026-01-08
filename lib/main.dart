@@ -13,6 +13,9 @@ import 'package:sarkiapp/providers/auth_provider.dart';
 // Services
 import 'package:sarkiapp/services/deep_link_service.dart';
 import 'package:sarkiapp/services/push_notification_service.dart';
+import 'package:sarkiapp/services/analytics_service.dart';
+import 'package:sarkiapp/services/ad_service.dart';
+import 'package:sarkiapp/services/purchase_service.dart';
 
 // Screens
 import 'package:sarkiapp/screens/auth/login_screen.dart';
@@ -35,6 +38,12 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // AdMob başlat
+  await AdService().initialize();
+  
+  // In-App Purchase başlat
+  await PurchaseService().initialize();
 
   // Sadece dikey mod
   await SystemChrome.setPreferredOrientations([
@@ -59,6 +68,7 @@ class SarkiApp extends StatelessWidget {
         title: 'Find2Sing',
         debugShowCheckedModeBanner: false,
         navigatorKey: navigatorKey,
+        navigatorObservers: [AnalyticsService().observer],
         theme: ThemeData(
           useMaterial3: true,
           fontFamily: 'Roboto',

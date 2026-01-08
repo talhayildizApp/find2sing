@@ -163,8 +163,9 @@ class _AdminContentBuilderScreenState extends State<AdminContentBuilderScreen> {
       setState(() => _status = '❌ ERROR: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ERROR: $e')));
     } finally {
-      if (!mounted) return;
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 

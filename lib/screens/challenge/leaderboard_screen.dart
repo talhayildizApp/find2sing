@@ -103,7 +103,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha:0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -115,7 +115,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFB958).withOpacity(0.2),
+                        color: const Color(0xFFFFB958).withValues(alpha:0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(Icons.emoji_events, color: Color(0xFFFFB958), size: 28),
@@ -223,7 +223,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isCurrentUser 
-                ? const Color(0xFFFFB958).withOpacity(0.15)
+                ? const Color(0xFFFFB958).withValues(alpha:0.15)
                 : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: isCurrentUser 
@@ -231,7 +231,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha:0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -274,7 +274,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: _getScoreColor(entry.bestScore).withOpacity(0.15),
+                  color: _getScoreColor(entry.bestScore).withValues(alpha:0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(

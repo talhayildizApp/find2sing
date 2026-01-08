@@ -108,6 +108,8 @@ class ChallengeSongWithWords {
       'active': active,
     };
   }
+
+  String get displayName => '$artist - $title';
 }
 
 /// User's single-player challenge progress
@@ -153,63 +155,6 @@ class UserChallengeProgressModel {
   int get solvedCount => solvedSongIds.length;
 }
 
-/// Challenge run record
-class ChallengeRunModel {
-  final String id;
-  final String uid;
-  final String challengeId;
-  final String mode; // "time_race", "relax", "real"
-  final int score;
-  final int correct;
-  final int wrong;
-  final int durationMs;
-  final bool finished;
-  final DateTime createdAt;
-
-  ChallengeRunModel({
-    required this.id,
-    required this.uid,
-    required this.challengeId,
-    required this.mode,
-    required this.score,
-    required this.correct,
-    required this.wrong,
-    required this.durationMs,
-    required this.finished,
-    required this.createdAt,
-  });
-
-  factory ChallengeRunModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return ChallengeRunModel(
-      id: doc.id,
-      uid: data['uid'] ?? '',
-      challengeId: data['challengeId'] ?? '',
-      mode: data['mode'] ?? 'relax',
-      score: data['score'] ?? 0,
-      correct: data['correct'] ?? 0,
-      wrong: data['wrong'] ?? 0,
-      durationMs: data['durationMs'] ?? 0,
-      finished: data['finished'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'uid': uid,
-      'challengeId': challengeId,
-      'mode': mode,
-      'score': score,
-      'correct': correct,
-      'wrong': wrong,
-      'durationMs': durationMs,
-      'finished': finished,
-      'createdAt': Timestamp.fromDate(createdAt),
-    };
-  }
-}
-
 /// Leaderboard entry for Real Challenge mode
 class LeaderboardEntryModel {
   final String oderId;
@@ -245,43 +190,4 @@ class LeaderboardEntryModel {
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
-}
-
-/// Challenge Song with wordSetId
-class ChallengeSongWithWords {
-  final String id;
-  final String artist;
-  final String title;
-  final String wordSetId;
-  final bool active;
-
-  ChallengeSongWithWords({
-    required this.id,
-    required this.artist,
-    required this.title,
-    required this.wordSetId,
-    this.active = true,
-  });
-
-  factory ChallengeSongWithWords.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return ChallengeSongWithWords(
-      id: doc.id,
-      artist: data['artist'] ?? '',
-      title: data['title'] ?? '',
-      wordSetId: data['wordSetId'] ?? '',
-      active: data['active'] ?? true,
-    );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'artist': artist,
-      'title': title,
-      'wordSetId': wordSetId,
-      'active': active,
-    };
-  }
-
-  String get displayName => '$artist - $title';
 }

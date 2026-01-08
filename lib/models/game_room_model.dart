@@ -114,6 +114,20 @@ class GameRoomModel {
   final ComebackBonus? comeback;
   final Map<String, List<String>>? missedWordByUid;
 
+  // Parallel race mode - both players answer same word simultaneously
+  final Map<String, Map<String, dynamic>> roundSubmissions; // uid -> {songId, isCorrect, submittedAt}
+  final String? roundWinner; // uid of player who won current round (first correct answer)
+
+  // Friends word game specific - end conditions
+  final String? endCondition; // 'songCount' or 'time'
+  final int? targetRounds; // target number of rounds for songCount mode
+  final int? timeMinutes; // total game time for time mode
+  final int? wordTimerSeconds; // guess time per turn (default 30)
+  final int? skipCount; // word skip allowance per player
+
+  // Abandoned game info
+  final String? abandonedBy; // uid of player who left the game
+
   GameRoomModel({
     required this.id,
     required this.mode,
@@ -133,6 +147,14 @@ class GameRoomModel {
     this.endsAt,
     this.comeback,
     this.missedWordByUid,
+    this.roundSubmissions = const {},
+    this.roundWinner,
+    this.endCondition,
+    this.targetRounds,
+    this.timeMinutes,
+    this.wordTimerSeconds,
+    this.skipCount,
+    this.abandonedBy,
   });
 
   factory GameRoomModel.fromFirestore(DocumentSnapshot doc) {
@@ -151,6 +173,14 @@ class GameRoomModel {
       missedWords = {};
       (data['missedWordByUid'] as Map<String, dynamic>).forEach((uid, words) {
         missedWords![uid] = List<String>.from(words ?? []);
+      });
+    }
+
+    // Parse roundSubmissions for parallel race mode
+    Map<String, Map<String, dynamic>> roundSubmissions = {};
+    if (data['roundSubmissions'] != null) {
+      (data['roundSubmissions'] as Map<String, dynamic>).forEach((uid, submission) {
+        roundSubmissions[uid] = Map<String, dynamic>.from(submission as Map);
       });
     }
 
@@ -189,6 +219,14 @@ class GameRoomModel {
           ? ComebackBonus.fromMap(data['comeback'] as Map<String, dynamic>)
           : null,
       missedWordByUid: missedWords,
+      roundSubmissions: roundSubmissions,
+      roundWinner: data['roundWinner'],
+      endCondition: data['endCondition'],
+      targetRounds: data['targetRounds'],
+      timeMinutes: data['timeMinutes'],
+      wordTimerSeconds: data['wordTimerSeconds'],
+      skipCount: data['skipCount'],
+      abandonedBy: data['abandonedBy'],
     );
   }
 
@@ -216,6 +254,13 @@ class GameRoomModel {
       'endsAt': endsAt != null ? Timestamp.fromDate(endsAt!) : null,
       'comeback': comeback?.toMap(),
       'missedWordByUid': missedWordByUid,
+      'roundSubmissions': roundSubmissions,
+      'roundWinner': roundWinner,
+      'endCondition': endCondition,
+      'targetRounds': targetRounds,
+      'timeMinutes': timeMinutes,
+      'wordTimerSeconds': wordTimerSeconds,
+      'skipCount': skipCount,
     };
   }
 
@@ -227,6 +272,17 @@ class GameRoomModel {
   String get opponentUid {
     return players.keys.firstWhere((uid) => uid != turnUid, orElse: () => '');
   }
+
+  /// Get opponent uid for a given player uid (for parallel mode)
+  String getOpponentUid(String playerUid) {
+    return players.keys.firstWhere((uid) => uid != playerUid, orElse: () => '');
+  }
+
+  /// Check if a player has already submitted for the current round
+  bool hasSubmitted(String uid) => roundSubmissions.containsKey(uid);
+
+  /// Check if the round has been won
+  bool get isRoundWon => roundWinner != null;
 
   RoomPlayer? getPlayer(String uid) => players[uid];
   RoomPlayer? get currentTurnPlayer => players[turnUid];

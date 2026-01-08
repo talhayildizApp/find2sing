@@ -1,17 +1,20 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../models/challenge_model.dart';
-import '../../models/word_set_model.dart';
 import '../../services/challenge_service.dart';
+import '../../services/haptic_service.dart';
+import '../../widgets/challenge_ui_components.dart';
 import 'challenge_result_screen.dart';
 
-/// Challenge Game Screen - 3 Single-player mode destekli
-/// - Time Race: 5dk toplam süre, yanlış = 3s freeze
-/// - Relax: 30s/round, yanlış = 1s freeze (her 3 yanlışta +1s)
-/// - Real: 30s/round, doğru +1, yanlış -3 (leaderboard'a gider)
+/// Challenge Game Screen - Premium UI Refactor
+/// 
+/// Features:
+/// - Soft cloudy background with glass cards
+/// - Searchable bottom sheet pickers (not long column lists)
+/// - Always visible "Bulduğun Şarkılar" section
+/// - Consistent header with mode pill + timer pill
+/// - Freeze overlay for wrong answers
 class ChallengeGameScreen extends StatefulWidget {
   final ChallengeModel challenge;
   final ChallengePlayMode playMode;
@@ -28,7 +31,8 @@ class ChallengeGameScreen extends StatefulWidget {
   State<ChallengeGameScreen> createState() => _ChallengeGameScreenState();
 }
 
-class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
+class _ChallengeGameScreenState extends State<ChallengeGameScreen>
+    with TickerProviderStateMixin {
   final ChallengeService _challengeService = ChallengeService();
   final Random _random = Random();
 
@@ -45,12 +49,12 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
   String? _selectedArtist;
   ChallengeSongModel? _selectedSong;
   List<String> _artistList = [];
-  List<ChallengeSongModel> _songsForArtist = [];
 
   // Timing
   int _totalSeconds = 0;
   int _roundSeconds = 30;
   int _freezeSeconds = 0;
+  int _totalFreezeTime = 3;
   Timer? _timer;
 
   // Scoring (Real mode)
@@ -59,19 +63,24 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
   int _wrongCount = 0;
 
   // Relax mode progressive freeze
-  int _consecutiveWrong = 0;
   int _currentFreezeTime = 1;
 
   // UI state
   bool _isLoading = true;
   bool _isFinished = false;
   bool _isFrozen = false;
+  bool _isSubmitting = false;
+
+  // Feedback state
   String? _feedbackMessage;
-  Color? _feedbackColor;
+  bool? _feedbackIsCorrect;
+  String? _feedbackBonus;
+  bool _showFeedback = false;
 
   // Mode settings
-  int get _totalTimeLimit => 5 * 60; // 5 dakika (Time Race)
-  int get _roundTimeLimit => 30;
+  int get _totalTimeLimit => 5 * 60; // 5 minutes for Time Race
+  // Round time: Real mode = 15s, Relax mode = 30s
+  int get _roundTimeLimit => widget.singleMode == ChallengeSingleMode.real ? 15 : 30;
 
   @override
   void initState() {
@@ -89,75 +98,23 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
     try {
       final songs = await _challengeService.getSongsForChallenge(widget.challenge.id);
       
-      if (songs.isEmpty) {
-        setState(() {
-          _isLoading = false;
-          _feedbackMessage = 'Bu challenge\'da şarkı bulunamadı.';
-        });
-        return;
-      }
-
-      final artists = songs.map((s) => s.artist).toSet().toList()..sort();
-
+      if (!mounted) return;
+      
       setState(() {
         _allSongs = songs;
-        _remainingSongs = List.from(songs)..shuffle();
-        _artistList = artists;
+        _remainingSongs = List.from(songs);
         _isLoading = false;
       });
 
       _selectNextWord();
       _startTimer();
+      HapticService.gameStart();
     } catch (e) {
       debugPrint('Error loading songs: $e');
-      setState(() {
-        _isLoading = false;
-        _feedbackMessage = 'Şarkılar yüklenirken hata oluştu.';
-      });
-    }
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    _roundSeconds = _roundTimeLimit;
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || _isFinished) {
-        timer.cancel();
-        return;
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
-
-      setState(() {
-        _totalSeconds++;
-
-        if (_isFrozen && _freezeSeconds > 0) {
-          _freezeSeconds--;
-          if (_freezeSeconds == 0) {
-            _isFrozen = false;
-            _feedbackMessage = null;
-          }
-          return;
-        }
-
-        if (widget.singleMode == ChallengeSingleMode.timeRace) {
-          if (_totalSeconds >= _totalTimeLimit) {
-            _finishGame(timedOut: true);
-            return;
-          }
-        }
-
-        if (widget.singleMode != ChallengeSingleMode.timeRace) {
-          _roundSeconds--;
-          if (_roundSeconds <= 0) {
-            _handleTimeout();
-          }
-        }
-      });
-    });
-  }
-
-  void _handleTimeout() {
-    _handleWrongAnswer(isTimeout: true);
+    }
   }
 
   void _selectNextWord() {
@@ -166,47 +123,116 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
       return;
     }
 
-    final randomSong = _remainingSongs[_random.nextInt(_remainingSongs.length)];
-    
-    final keywords = randomSong.topKeywords.isNotEmpty 
-        ? randomSong.topKeywords 
-        : randomSong.keywords;
-    
-    if (keywords.isEmpty) {
-      _remainingSongs.remove(randomSong);
-      _selectNextWord();
+    // Get available words from topKeywords
+    final availableWords = <String>{};
+    for (final song in _remainingSongs) {
+      if (song.topKeywords.isNotEmpty) {
+        availableWords.addAll(song.topKeywords);
+      } else if (song.keywords.isNotEmpty) {
+        availableWords.addAll(song.keywords);
+      }
+    }
+
+    if (availableWords.isEmpty) {
+      _finishGame();
       return;
     }
 
-    final word = keywords[_random.nextInt(keywords.length)];
-    final validSongs = _remainingSongs.where((s) => s.containsWord(word)).toList();
+    // Random word selection
+    final wordList = availableWords.toList();
+    final word = wordList[_random.nextInt(wordList.length)];
+
+    // Find valid songs for this word
+    final validSongs = _remainingSongs.where((song) {
+      return song.containsWord(word) && !_solvedSongIds.contains(song.id);
+    }).toList();
+
+    if (validSongs.isEmpty) {
+      // Try again with different word
+      if (wordList.length > 1) {
+        _selectNextWord();
+        return;
+      }
+      _finishGame();
+      return;
+    }
+
+    // Get unique artists for this word
+    final artistSet = validSongs.map((s) => s.artist).toSet().toList()..sort();
 
     setState(() {
       _currentWord = word;
       _validSongsForWord = validSongs;
+      _artistList = artistSet;
       _selectedArtist = null;
       _selectedSong = null;
-      _songsForArtist = [];
       _roundSeconds = _roundTimeLimit;
     });
   }
 
-  void _onArtistSelected(String artist) {
-    final songs = _allSongs.where((s) => s.artist == artist).toList();
-    setState(() {
-      _selectedArtist = artist;
-      _songsForArtist = songs;
-      _selectedSong = null;
+  void _startTimer() {
+    _timer?.cancel();
+    
+    _totalSeconds = widget.singleMode == ChallengeSingleMode.timeRace 
+        ? _totalTimeLimit 
+        : 0;
+    
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _isFinished) return;
+
+      setState(() {
+        // Handle freeze
+        if (_isFrozen) {
+          if (_freezeSeconds > 0) {
+            _freezeSeconds--;
+          } else {
+            _isFrozen = false;
+            HapticService.freezeEnd();
+          }
+          return;
+        }
+
+        // Time Race mode: 5 dakikadan geriye doğru say (countdown)
+        if (widget.singleMode == ChallengeSingleMode.timeRace) {
+          if (_totalSeconds > 0) {
+            _totalSeconds--; // Geriye say (countdown)
+
+            // Son 30 saniyede haptic feedback
+            if (_totalSeconds <= 30 && _totalSeconds > 0) {
+              HapticService.timeCritical();
+            }
+          } else {
+            // Süre bitti - oyunu bitir
+            _finishGame();
+          }
+        }
+
+        // Round timer for Relax and Real modes
+        if (widget.singleMode != ChallengeSingleMode.timeRace) {
+          // Genel süreyi artır (elapsed time)
+          _totalSeconds++;
+
+          if (_roundSeconds > 0) {
+            _roundSeconds--;
+
+            if (_roundSeconds <= 5) {
+              HapticService.timeCritical();
+            }
+          } else {
+            // Time expired for this word - move to next
+            _selectNextWord();
+          }
+        }
+      });
     });
   }
 
-  void _onSongSelected(ChallengeSongModel song) {
-    setState(() => _selectedSong = song);
-  }
+  void _onSubmit() {
+    if (_selectedArtist == null || _selectedSong == null || _isFrozen || _isSubmitting) return;
 
-  void _submitAnswer() {
-    if (_selectedSong == null || _isFrozen) return;
+    setState(() => _isSubmitting = true);
 
+    // Check if selection is correct
     final isCorrect = _validSongsForWord.any((s) => s.id == _selectedSong!.id);
 
     if (isCorrect) {
@@ -214,83 +240,111 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
     } else {
       _handleWrongAnswer();
     }
+
+    setState(() => _isSubmitting = false);
   }
 
   void _handleCorrectAnswer() {
-    final song = _selectedSong!;
+    HapticService.correct();
+    _currentFreezeTime = 1;
+
+    // Scoring based on mode
+    int points = 1;
+    String? bonus;
+
+    switch (widget.singleMode) {
+      case ChallengeSingleMode.timeRace:
+        // Time Race: Sadece hız önemli, puan bildirimi yok
+        points = 0; // Time Race'de puan yok
+        bonus = null; // Puan bildirimi gösterme
+        break;
+      case ChallengeSingleMode.relax:
+        points = 1;
+        break;
+      case ChallengeSingleMode.real:
+        points = 1;
+        break;
+    }
 
     setState(() {
-      _solvedSongs.add(song);
-      _solvedSongIds.add(song.id);
-      _remainingSongs.removeWhere((s) => s.id == song.id);
+      _score += points;
       _correctCount++;
-      _consecutiveWrong = 0;
-
-      if (widget.singleMode == ChallengeSingleMode.real) {
-        _score += 1;
-      }
-
-      _feedbackMessage = '✓ Doğru!';
-      _feedbackColor = Colors.green;
+      _solvedSongs.add(_selectedSong!);
+      _solvedSongIds.add(_selectedSong!.id);
+      _remainingSongs.removeWhere((s) => s.id == _selectedSong!.id);
+      
+      _feedbackMessage = 'Doğru! 🎉';
+      _feedbackIsCorrect = true;
+      _feedbackBonus = bonus;
+      _showFeedback = true;
     });
 
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      setState(() => _feedbackMessage = null);
-
-      if (_remainingSongs.isEmpty) {
-        _finishGame();
-      } else {
+    // Hide feedback and move to next word
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        setState(() => _showFeedback = false);
         _selectNextWord();
       }
     });
   }
 
-  void _handleWrongAnswer({bool isTimeout = false}) {
-    setState(() {
-      _wrongCount++;
-      _consecutiveWrong++;
+  void _handleWrongAnswer() {
+    HapticService.wrong();
 
-      if (widget.singleMode == ChallengeSingleMode.real) {
-        _score -= 3;
-      }
+    // Scoring and freeze based on mode
+    int freezeTime = 0;
+    int penalty = 0;
 
-      _feedbackMessage = isTimeout ? '⏱ Süre doldu!' : '✗ Yanlış!';
-      _feedbackColor = Colors.red;
-    });
-
-    int freezeDuration = 0;
-    
     switch (widget.singleMode) {
       case ChallengeSingleMode.timeRace:
-        freezeDuration = 3;
+        freezeTime = 3;
         break;
       case ChallengeSingleMode.relax:
-        if (_consecutiveWrong % 3 == 0 && _consecutiveWrong > 0) {
-          _currentFreezeTime++;
-        }
-        freezeDuration = _currentFreezeTime;
+        // Progressive freeze: 1s, 2s, 3s, 4s...
+        freezeTime = _currentFreezeTime;
+        _currentFreezeTime = (_currentFreezeTime + 1).clamp(1, 5);
         break;
       case ChallengeSingleMode.real:
-        freezeDuration = 1;
+        penalty = 3;
         break;
     }
 
     setState(() {
-      _isFrozen = true;
-      _freezeSeconds = freezeDuration;
+      _score -= penalty;
+      _wrongCount++;
+      
+      if (freezeTime > 0) {
+        _isFrozen = true;
+        _freezeSeconds = freezeTime;
+        _totalFreezeTime = freezeTime;
+        HapticService.freezeStart();
+      }
+      
+      _feedbackMessage = 'Yanlış! ❌';
+      _feedbackIsCorrect = false;
+      _feedbackBonus = penalty > 0 ? '-$penalty puan' : null;
+      _showFeedback = true;
     });
 
-    Future.delayed(Duration(seconds: freezeDuration + 1), () {
-      if (!mounted || _isFinished) return;
-      _selectNextWord();
+    // Clear selection
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _showFeedback = false;
+          _selectedArtist = null;
+          _selectedSong = null;
+        });
+      }
     });
   }
 
-  void _finishGame({bool timedOut = false}) {
+  void _finishGame() {
+    if (_isFinished) return;
+
     _timer?.cancel();
     setState(() => _isFinished = true);
-    _saveGameRun(timedOut: timedOut);
+
+    HapticService.challengeComplete();
 
     Navigator.pushReplacement(
       context,
@@ -303,434 +357,11 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
           score: _score,
           correctCount: _correctCount,
           wrongCount: _wrongCount,
-          durationSeconds: _totalSeconds,
-          timedOut: timedOut,
+          durationSeconds: widget.singleMode == ChallengeSingleMode.timeRace 
+              ? _totalTimeLimit - _totalSeconds 
+              : _totalSeconds,
+          timedOut: widget.singleMode == ChallengeSingleMode.timeRace && _totalSeconds <= 0,
         ),
-      ),
-    );
-  }
-
-  Future<void> _saveGameRun({bool timedOut = false}) async {
-    try {
-      final authProvider = context.read<AuthProvider>();
-      final uid = authProvider.user?.uid ?? '';
-      if (uid.isEmpty) return;
-
-      await _challengeService.saveChallengeRun(
-        ChallengeRunModel(
-          id: '',
-          uid: uid,
-          challengeId: widget.challenge.id,
-          mode: widget.singleMode.name,
-          score: _score,
-          correct: _correctCount,
-          wrong: _wrongCount,
-          durationMs: _totalSeconds * 1000,
-          finished: !timedOut && _remainingSongs.isEmpty,
-          createdAt: DateTime.now(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Error saving game run: $e');
-    }
-  }
-
-  String _formatTime(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFE8E0FF), Color(0xFFF5F3FF)],
-            ),
-          ),
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFE8E0FF), Color(0xFFF5F3FF)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              _buildWordCard(),
-              if (_feedbackMessage != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: (_feedbackColor ?? Colors.grey).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _feedbackMessage!,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _feedbackColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _isFrozen ? _buildFreezeOverlay() : _buildSelectionArea(),
-              ),
-              if (_selectedSong != null && !_isFrozen)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _submitAnswer,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFCAB7FF),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Cevapla',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF394272),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => _showExitDialog(),
-            icon: const Icon(Icons.close, color: Color(0xFF394272)),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                Text(
-                  '${_solvedSongs.length} / ${_allSongs.length}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF394272),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                LinearProgressIndicator(
-                  value: _allSongs.isEmpty ? 0 : _solvedSongs.length / _allSongs.length,
-                  backgroundColor: Colors.white.withOpacity(0.5),
-                  valueColor: const AlwaysStoppedAnimation(Color(0xFFCAB7FF)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: _getTimerColor(),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  _getTimerText(),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                if (widget.singleMode == ChallengeSingleMode.real)
-                  Text(
-                    'Skor: $_score',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white70,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getTimerColor() {
-    if (widget.singleMode == ChallengeSingleMode.timeRace) {
-      final remaining = _totalTimeLimit - _totalSeconds;
-      if (remaining <= 30) return Colors.red;
-      if (remaining <= 60) return Colors.orange;
-      return const Color(0xFF394272);
-    } else {
-      if (_roundSeconds <= 5) return Colors.red;
-      if (_roundSeconds <= 10) return Colors.orange;
-      return const Color(0xFF394272);
-    }
-  }
-
-  String _getTimerText() {
-    if (widget.singleMode == ChallengeSingleMode.timeRace) {
-      final remaining = _totalTimeLimit - _totalSeconds;
-      return _formatTime(remaining.clamp(0, _totalTimeLimit));
-    } else {
-      return _formatTime(_roundSeconds);
-    }
-  }
-
-  Widget _buildWordCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFCAB7FF), Color(0xFFB8A4FF)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFCAB7FF).withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'KELİME',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.white70,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _currentWord.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: 2,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFreezeOverlay() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.pause_circle_filled, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              'FREEZE',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: Colors.red.shade700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$_freezeSeconds saniye',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF394272),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSelectionArea() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sanatçı Seç',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF6C6FA4),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _artistList.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final artist = _artistList[index];
-                      final isSelected = artist == _selectedArtist;
-                      return GestureDetector(
-                        onTap: () => _onArtistSelected(artist),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFCAB7FF) : const Color(0xFFF5F3FF),
-                            borderRadius: BorderRadius.circular(20),
-                            border: isSelected ? null : Border.all(color: const Color(0xFFE0E0E0)),
-                          ),
-                          child: Text(
-                            artist,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: isSelected ? Colors.white : const Color(0xFF394272),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _selectedArtist == null
-                ? const Center(
-                    child: Text(
-                      'Önce sanatçı seç',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF6C6FA4)),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _songsForArtist.length,
-                    itemBuilder: (context, index) {
-                      final song = _songsForArtist[index];
-                      final isSelected = song.id == _selectedSong?.id;
-                      final isSolved = _solvedSongIds.contains(song.id);
-
-                      return GestureDetector(
-                        onTap: isSolved ? null : () => _onSongSelected(song),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isSolved 
-                                ? Colors.green.withOpacity(0.1)
-                                : isSelected 
-                                    ? const Color(0xFFCAB7FF).withOpacity(0.2)
-                                    : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSolved
-                                  ? Colors.green
-                                  : isSelected 
-                                      ? const Color(0xFFCAB7FF)
-                                      : const Color(0xFFE0E0E0),
-                              width: isSelected || isSolved ? 2 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              if (isSolved)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 12),
-                                  child: Icon(Icons.check_circle, color: Colors.green, size: 20),
-                                ),
-                              if (isSelected && !isSolved)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 12),
-                                  child: Icon(Icons.radio_button_checked, color: Color(0xFFCAB7FF), size: 20),
-                                ),
-                              if (!isSelected && !isSolved)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 12),
-                                  child: Icon(Icons.radio_button_off, color: Color(0xFFCCCCCC), size: 20),
-                                ),
-                              Expanded(
-                                child: Text(
-                                  song.title,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                    color: isSolved ? Colors.green.shade700 : const Color(0xFF394272),
-                                    decoration: isSolved ? TextDecoration.lineThrough : null,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
       ),
     );
   }
@@ -741,11 +372,11 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Oyundan Çık'),
-        content: const Text('Oyundan çıkmak istediğine emin misin? İlerleme kaydedilmeyecek.'),
+        content: const Text('İlerlemeniz kaydedilmeyecek. Çıkmak istediğinize emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Devam Et'),
+            child: const Text('İptal'),
           ),
           TextButton(
             onPressed: () {
@@ -754,6 +385,564 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen> {
             },
             child: const Text('Çık', style: TextStyle(color: Colors.red)),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _openArtistPicker() {
+    if (_isFrozen) return;
+
+    // Filter out solved songs, then get unique artists
+    final availableSongs = _remainingSongs.where((s) => !_solvedSongIds.contains(s.id)).toList();
+    final artists = availableSongs.map((s) => s.artist).toSet().toList()..sort();
+
+    // Fallback to all artists if no available songs
+    final artistsToShow = artists.isNotEmpty ? artists : _artistList;
+    if (artistsToShow.isEmpty) return;
+
+    SearchableBottomSheetPicker.show<String>(
+      context: context,
+      title: 'Sanatçı Seç',
+      items: artistsToShow,
+      itemLabel: (artist) => artist,
+      selectedItem: _selectedArtist,
+      searchHint: 'Sanatçı ara...',
+      accentColor: ChallengeColors.primaryPurple,
+      onSelect: (artist) {
+        setState(() {
+          _selectedArtist = artist;
+          _selectedSong = null;
+        });
+      },
+    );
+  }
+
+  void _openSongPicker() {
+    if (_isFrozen) return;
+
+    // Filter out solved songs
+    final availableSongs = _remainingSongs.where((s) => !_solvedSongIds.contains(s.id)).toList();
+
+    // Fallback to remaining songs if no available
+    final baseSongs = availableSongs.isNotEmpty ? availableSongs : _remainingSongs;
+    if (baseSongs.isEmpty) return;
+
+    // Show filtered songs if artist is selected, otherwise show all available songs
+    final songsToShow = _selectedArtist != null
+        ? baseSongs.where((s) => s.artist == _selectedArtist).toList()
+        : baseSongs;
+
+    if (songsToShow.isEmpty) return;
+
+    SearchableBottomSheetPicker.show<ChallengeSongModel>(
+      context: context,
+      title: 'Şarkı Seç',
+      items: songsToShow,
+      itemLabel: (song) => song.title,
+      itemSubtitle: (song) => song.artist,
+      selectedItem: _selectedSong,
+      searchHint: 'Şarkı ara...',
+      accentColor: ChallengeColors.primaryPurple,
+      onSelect: (song) {
+        setState(() {
+          _selectedSong = song;
+          // Auto-select artist when song is selected
+          _selectedArtist = song.artist;
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return _buildLoadingScreen();
+    }
+
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background
+          _buildBackground(),
+
+          // Main content
+          SafeArea(
+            child: Column(
+              children: [
+                // Header - Just back button
+                _buildHeader(),
+
+                // Scrollable content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+
+                        // HERO WORD - Glowing card with timer
+                        // Time Race: 5 dakika countdown + arc
+                        // Relax/Real: round timer only (genel süre header'da)
+                        Center(
+                          child: WordHeroCard(
+                            word: _currentWord,
+                            categoryName: null,
+                            // Time Race: 5 dakika countdown (arc var)
+                            // Relax/Real: round timer (countdown, arc var)
+                            timerSeconds: widget.singleMode == ChallengeSingleMode.timeRace
+                                ? _totalSeconds  // Time Race: 5 dk countdown
+                                : _roundSeconds,
+                            totalSeconds: widget.singleMode == ChallengeSingleMode.timeRace
+                                ? _totalTimeLimit  // Time Race: 5 dakika = 300 saniye
+                                : _roundTimeLimit,
+                            // Bottom badge kaldırıldı - genel süre header'a taşındı
+                            gameTimeSeconds: null,
+                            isGameTimeCountdown: false,
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Selection card with yan yana pickers + Onayla
+                        SelectionInputCard(
+                          selectedArtist: _selectedArtist,
+                          selectedSong: _selectedSong?.title,
+                          enabled: !_isFrozen,
+                          onArtistTap: _openArtistPicker,
+                          onSongTap: _openSongPicker,
+                          onSubmit: _onSubmit,
+                          isSubmitting: _isSubmitting,
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Solved songs - white card
+                        SolvedSongsCard(
+                          songs: _solvedSongs,
+                          maxVisible: 4,
+                        ),
+
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Bottom stats bar
+                _buildBottomStats(),
+              ],
+            ),
+          ),
+
+          // Freeze overlay
+          if (_isFrozen)
+            Positioned.fill(
+              child: ChallengeFreezeOverlay(
+                secondsLeft: _freezeSeconds,
+                totalSeconds: _totalFreezeTime,
+              ),
+            ),
+
+          // Feedback toast
+          if (_showFeedback && _feedbackMessage != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 100,
+              left: 40,
+              right: 40,
+              child: Center(
+                child: ChallengeFeedbackToast(
+                  message: _feedbackMessage!,
+                  isCorrect: _feedbackIsCorrect ?? false,
+                  bonus: _feedbackBonus,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackground() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Base image
+        Image.asset(
+          'assets/images/bg_music_clouds.png',
+          fit: BoxFit.cover,
+        ),
+        // Soft overlay
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withValues(alpha: 0.25),
+                Colors.white.withValues(alpha:0.1),
+                ChallengeColors.softPurple.withValues(alpha:0.3),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          _buildBackground(),
+          Center(
+            child: GlassCard(
+              padding: const EdgeInsets.all(40),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    color: ChallengeColors.primaryPurple,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Şarkılar yükleniyor...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: ChallengeColors.darkPurple,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Sol: Back button
+          GestureDetector(
+            onTap: _showExitDialog,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.95),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Color(0xFF394272),
+                size: 20,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Orta: Mode + Kategori badge (Time Race | Tarkan)
+          Expanded(
+            child: Center(
+              child: _buildModeCategoryBadge(),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Sağ: Symmetry placeholder (tüm modlar için)
+          // Time Race: timer güneşte
+          // Relax: elapsed time bottom bar'da
+          // Real: puan bottom bar'da
+          const SizedBox(width: 40),
+        ],
+      ),
+    );
+  }
+
+  /// Mode + Kategori badge - "Time Race | Tarkan" format
+  Widget _buildModeCategoryBadge() {
+    // Mode renkleri - mor yerine daha canlı renkler
+    Color modeColor;
+    IconData modeIcon;
+    String modeName;
+
+    switch (widget.singleMode) {
+      case ChallengeSingleMode.timeRace:
+        modeColor = const Color(0xFFFF6B6B); // Coral red
+        modeIcon = Icons.flash_on_rounded;
+        modeName = 'Time Race';
+        break;
+      case ChallengeSingleMode.relax:
+        modeColor = const Color(0xFF4ECDC4); // Teal
+        modeIcon = Icons.spa_rounded;
+        modeName = 'Relax';
+        break;
+      case ChallengeSingleMode.real:
+        modeColor = const Color(0xFFFFB347); // Orange
+        modeIcon = Icons.emoji_events_rounded;
+        modeName = 'Real';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Mode icon + name
+          Icon(
+            modeIcon,
+            color: modeColor,
+            size: 16,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            modeName,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: modeColor,
+            ),
+          ),
+
+          // Divider
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            width: 1,
+            height: 16,
+            color: Colors.grey.shade300,
+          ),
+
+          // Category icon + name
+          const Icon(
+            Icons.person_rounded,
+            color: Color(0xFF394272),
+            size: 16,
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              widget.challenge.title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF394272),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomStats() {
+    final solvedCount = _solvedSongs.length;
+    final totalSlots = _allSongs.length.clamp(0, 10);
+    final showScore = widget.singleMode == ChallengeSingleMode.real;
+    final showElapsedTime = widget.singleMode == ChallengeSingleMode.relax;
+
+    // Current dot color based on mode
+    Color currentDotColor;
+    switch (widget.singleMode) {
+      case ChallengeSingleMode.timeRace:
+        currentDotColor = const Color(0xFFFF6B6B); // Coral
+        break;
+      case ChallengeSingleMode.relax:
+        currentDotColor = const Color(0xFF4ECDC4); // Teal
+        break;
+      case ChallengeSingleMode.real:
+        currentDotColor = const Color(0xFFFFB347); // Orange
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Sol: Progress dots + şarkı sayısı
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Progress dots
+                if (totalSlots > 0)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(totalSlots.clamp(0, 10), (index) {
+                      final isFilled = index < solvedCount;
+                      final isNext = index == solvedCount;
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isFilled
+                              ? const Color(0xFF4CAF50)
+                              : isNext
+                                  ? currentDotColor.withValues(alpha: 0.2)
+                                  : Colors.grey.withValues(alpha: 0.15),
+                          border: Border.all(
+                            color: isFilled
+                                ? const Color(0xFF4CAF50)
+                                : isNext
+                                    ? currentDotColor
+                                    : Colors.grey.shade300,
+                            width: 2,
+                          ),
+                        ),
+                        child: isFilled
+                            ? const Icon(
+                                Icons.check_rounded,
+                                size: 10,
+                                color: Colors.white,
+                              )
+                            : null,
+                      );
+                    }),
+                  ),
+
+                const SizedBox(height: 6),
+
+                // Şarkı sayısı
+                Text(
+                  '$solvedCount/${_allSongs.length} şarkı',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF394272).withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Sağ: Badge (mode'a göre)
+          // Real: Puan badge
+          // Relax: Elapsed time badge
+          if (showScore) ...[
+            Container(
+              margin: const EdgeInsets.only(left: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFB347), Color(0xFFFFCC80)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFB347).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.star_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$_score',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (showElapsedTime) ...[
+            Container(
+              margin: const EdgeInsets.only(left: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4ECDC4), Color(0xFF7EDDD6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4ECDC4).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_totalSeconds ~/ 60}:${(_totalSeconds % 60).toString().padLeft(2, '0')}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

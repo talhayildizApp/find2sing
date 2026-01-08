@@ -19,9 +19,6 @@ class ChallengeService {
   CollectionReference<Map<String, dynamic>> get _wordIndexRef =>
       _db.collection('challengeWordIndex');
 
-  CollectionReference<Map<String, dynamic>> get _wordSetsRef =>
-      _db.collection('wordSets');
-
   CollectionReference<Map<String, dynamic>> get _challengeRunsRef =>
       _db.collection('challengeRuns');
 
@@ -259,194 +256,48 @@ class ChallengeService {
     return UserChallengeProgressModel.fromFirestore(doc);
   }
 
-  /// Update user progress (add solved song)
+  /// Update user challenge progress
   Future<void> updateUserProgress(String uid, String challengeId, String solvedSongId) async {
     final docRef = _db.collection('userChallengeProgress').doc('${uid}_$challengeId');
-    final doc = await docRef.get();
-
-    if (doc.exists) {
-      await docRef.update({
-        'solvedSongIds': FieldValue.arrayUnion([solvedSongId]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      await docRef.set({
-        'uid': uid,
-        'challengeId': challengeId,
-        'solvedSongIds': [solvedSongId],
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
-  }
-
-  /// Reset user progress for a challenge
-  Future<void> resetUserProgress(String uid, String challengeId) async {
-    await _db
-        .collection('userChallengeProgress')
-        .doc('${uid}_$challengeId')
-        .delete();
-  }
-
-  // ==================== CHALLENGE RUNS & LEADERBOARD ====================
-
-  /// Save challenge run
-  Future<String> saveChallengeRun(ChallengeRunModel run) async {
-    final doc = await _challengeRunsRef.add(run.toFirestore());
-
-    // Update leaderboard only for Real mode single-player
-    if (run.mode == 'real' && run.finished) {
-      await _updateLeaderboard(run);
-    }
-
-    return doc.id;
-  }
-
-  /// Update leaderboard
-  Future<void> _updateLeaderboard(ChallengeRunModel run) async {
-    final leaderboardRef = _db
-        .collection('leaderboards')
-        .doc(run.challengeId)
-        .collection('real')
-        .doc(run.uid);
-
-    final existing = await leaderboardRef.get();
-
-    if (!existing.exists || (existing.data()?['bestScore'] ?? 0) < run.score) {
-      // Get user display name
-      final userDoc = await _db.collection('users').doc(run.uid).get();
-      final displayName = userDoc.data()?['displayName'] ?? 'Oyuncu';
-
-      await leaderboardRef.set({
-        'displayName': displayName,
-        'bestScore': run.score,
-        'bestDurationMs': run.durationMs,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-  }
-
-  /// Get leaderboard for a challenge
-  Stream<List<LeaderboardEntryModel>> getLeaderboard(String challengeId, {int limit = 50}) {
-    return _db
-        .collection('leaderboards')
-        .doc(challengeId)
-        .collection('real')
-        .orderBy('bestScore', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => LeaderboardEntryModel.fromFirestore(doc))
-          .toList();
+    
+    await _db.runTransaction((transaction) async {
+      final doc = await transaction.get(docRef);
+      
+      if (doc.exists) {
+        transaction.update(docRef, {
+          'solvedSongIds': FieldValue.arrayUnion([solvedSongId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.set(docRef, {
+          'uid': uid,
+          'challengeId': challengeId,
+          'solvedSongIds': [solvedSongId],
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
     });
   }
 
-  /// Get user's best run for a challenge mode
-  Future<ChallengeRunModel?> getUserBestRun(String uid, String challengeId, String mode) async {
-    final snapshot = await _challengeRunsRef
-        .where('uid', isEqualTo: uid)
-        .where('challengeId', isEqualTo: challengeId)
-        .where('mode', isEqualTo: mode)
-        .where('finished', isEqualTo: true)
-        .orderBy('score', descending: true)
-        .limit(1)
-        .get();
+  /// Get songs for a challenge
+  Future<List<ChallengeSongModel>> getSongsForChallenge(String challengeId) async {
+    final challenge = await getChallenge(challengeId);
+    if (challenge == null) return [];
 
-    if (snapshot.docs.isEmpty) return null;
-    return ChallengeRunModel.fromFirestore(snapshot.docs.first);
-  }
-
-  // ==================== WORD INDEX CREATION (ADMIN) ====================
-
-  /// Create word index for a challenge (admin function)
-  Future<void> buildWordIndex(String challengeId) async {
-    // Get all songs for challenge
-    final songsSnapshot = await _challengesRef
-        .doc(challengeId)
-        .collection('songs')
-        .where('active', isEqualTo: true)
-        .get();
-
-    final wordToSongs = <String, List<String>>{};
-
-    for (final songDoc in songsSnapshot.docs) {
-      final song = ChallengeSongWithWords.fromFirestore(songDoc);
-
-      // Get word set for this song
-      final wordSetDoc = await _wordSetsRef.doc(song.wordSetId).get();
-      if (!wordSetDoc.exists) continue;
-
-      final words = List<String>.from(wordSetDoc.data()?['words'] ?? []);
-
-      for (final word in words) {
-        final normalizedWord = word.toUpperCase().trim();
-        wordToSongs.putIfAbsent(normalizedWord, () => []);
-        wordToSongs[normalizedWord]!.add(song.id);
+    final songs = <ChallengeSongModel>[];
+    for (final songId in challenge.songIds) {
+      final doc = await _songsRef.doc(songId).get();
+      if (doc.exists) {
+        songs.add(ChallengeSongModel.fromFirestore(doc));
       }
     }
-
-    // Write word index documents
-    final batch = _db.batch();
-
-    for (final entry in wordToSongs.entries) {
-      final docId = '${challengeId}_${entry.key}';
-      batch.set(_wordIndexRef.doc(docId), {
-        'challengeId': challengeId,
-        'word': entry.key,
-        'songIds': entry.value,
-      });
-    }
-
-    await batch.commit();
+    return songs;
   }
 
-  /// Create word set for a song
-  Future<String> createWordSet(List<String> words) async {
-    final doc = await _wordSetsRef.add({
-      'words': words.map((w) => w.toUpperCase().trim()).toList(),
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return doc.id;
-  }
-
-  /// Add song to challenge with words
-  Future<String> addChallengeSong({
-    required String challengeId,
-    required String artist,
-    required String title,
-    required List<String> words,
-  }) async {
-    // Create word set
-    final wordSetId = await createWordSet(words);
-
-    // Add song to challenge
-    final songRef = _challengesRef.doc(challengeId).collection('songs').doc();
-    await songRef.set({
-      'artist': artist,
-      'title': title,
-      'wordSetId': wordSetId,
-      'active': true,
-    });
-
-    return songRef.id;
-  }
-
-  // ==================== GAME PLAY METHODS (NEW) ====================
-
-  /// Get all songs for a challenge from flat songs collection
-  Future<List<ChallengeSongModel>> getSongsForChallenge(String challengeId) async {
-    final snapshot = await _songsRef
-        .where('challengeId', isEqualTo: challengeId)
-        .get();
-
-    return snapshot.docs
-        .map((doc) => ChallengeSongModel.fromFirestore(doc))
-        .toList();
-  }
-
-  /// Get random eligible word using word index
-  Future<String?> getEligibleWord(String challengeId, List<String> solvedSongIds) async {
+  /// Get next word for challenge (with word index)
+  Future<String?> getNextWord(String challengeId, List<String> solvedSongIds) async {
+    // Try word index first
     final indexDocs = await _wordIndexRef
         .where('challengeId', isEqualTo: challengeId)
         .get();
@@ -540,14 +391,14 @@ class ChallengeService {
     
     // Update leaderboard if Real mode and finished
     if (run.mode == 'real' && run.finished) {
-      await _updateLeaderboard(run);
+      await _updateLeaderboardEntry(run);
     }
     
     return docRef.id;
   }
 
   /// Update leaderboard for Real mode
-  Future<void> _updateLeaderboard(ChallengeRunModel run) async {
+  Future<void> _updateLeaderboardEntry(ChallengeRunModel run) async {
     final leaderboardRef = _db
         .collection('leaderboards')
         .doc(run.challengeId)

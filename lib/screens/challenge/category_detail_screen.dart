@@ -496,19 +496,6 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     );
   }
 
-  String _getDifficultyText(String difficulty) {
-    switch (difficulty) {
-      case 'easy':
-        return 'Kolay';
-      case 'medium':
-        return 'Orta';
-      case 'hard':
-        return 'Zor';
-      default:
-        return 'Orta';
-    }
-  }
-
   void _showLockedInfo(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
