@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kullanım Şartları - Find2Sing</title>
+    <title>Kullanım Şartları / Terms of Service - Find2Sing</title>
     <style>
         * {
             margin: 0;
@@ -25,6 +25,30 @@
             border-radius: 20px;
             padding: 40px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .lang-switcher {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .lang-btn {
+            padding: 8px 16px;
+            border: 2px solid #FFB958;
+            border-radius: 20px;
+            background: white;
+            color: #394272;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .lang-btn.active {
+            background: #FFB958;
+            color: white;
+        }
+        .lang-btn:hover {
+            background: #FFB958;
+            color: white;
         }
         h1 {
             color: #FFB958;
@@ -79,94 +103,216 @@
             font-size: 40px;
             margin-bottom: 20px;
         }
+        .content-tr, .content-en {
+            display: none;
+        }
+        .content-tr.active, .content-en.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="lang-switcher">
+            <button class="lang-btn active" onclick="switchLang('tr')">Türkçe</button>
+            <button class="lang-btn" onclick="switchLang('en')">English</button>
+        </div>
+
         <div class="logo">🎵</div>
-        <h1>Kullanım Şartları</h1>
-        <p class="update-date">Son Güncelleme: 11 Ocak 2025</p>
 
-        <div class="highlight">
-            <strong>Özet:</strong> Find2Sing'i kullanarak bu şartları kabul etmiş olursunuz. Lütfen dikkatli okuyunuz.
+        <!-- TÜRKÇE İÇERİK -->
+        <div class="content-tr active">
+            <h1>Kullanım Şartları</h1>
+            <p class="update-date">Son Güncelleme: 11 Ocak 2025</p>
+
+            <div class="highlight">
+                <strong>Özet:</strong> Find2Sing'i kullanarak bu şartları kabul etmiş olursunuz. Lütfen dikkatli okuyunuz.
+            </div>
+
+            <h2>1. Hizmetin Kabulu</h2>
+            <p>Find2Sing uygulamasını ("Uygulama") indirerek, kurarak veya kullanarak, bu Kullanım Şartlarını kabul etmiş sayılırsınız. Bu şartları kabul etmiyorsanız, lütfen uygulamayı kullanmayınız.</p>
+
+            <h2>2. Hizmet Açıklaması</h2>
+            <p>Find2Sing, kullanıcıların müzik bilgilerini test edebilecekleri eğlenceli bir oyundur. Uygulama şunları içerir:</p>
+            <ul>
+                <li>Tek oyunculu ve çok oyunculu oyun modları</li>
+                <li>Challenge'lar ve kategoriler</li>
+                <li>Liderlik tabloları</li>
+                <li>Premium abonelik seçenekleri</li>
+            </ul>
+
+            <h2>3. Hesap Oluşturma</h2>
+            <p>Bazı özellikleri kullanmak için hesap oluşturmanız gerekebilir. Hesap oluştururken:</p>
+            <ul>
+                <li>Doğru ve güncel bilgiler vermeyi kabul edersiniz</li>
+                <li>Hesap güvenliğinizden siz sorumlusunuz</li>
+                <li>Hesabınızı başkalarıyla paylaşmamalısınız</li>
+            </ul>
+
+            <h2>4. Satın Almalar ve Abonelikler</h2>
+            <p>Uygulama içi satın almalar ve abonelikler için:</p>
+            <ul>
+                <li><strong>Premium Abonelik:</strong> Aylık veya yıllık olarak sunulur</li>
+                <li><strong>Otomatik Yenileme:</strong> Abonelikler, iptal edilmedikçe otomatik yenilenir</li>
+                <li><strong>İptal:</strong> Aboneliğinizi App Store/Google Play ayarlarından iptal edebilirsiniz</li>
+                <li><strong>İade:</strong> İadeler, ilgili uygulama mağazasının politikalarına tabidir</li>
+            </ul>
+
+            <div class="warning">
+                <strong>Önemli:</strong> Aboneliğinizi dönem bitiminden en az 24 saat önce iptal etmezseniz, otomatik olarak yenilenir.
+            </div>
+
+            <h2>5. Kullanıcı Davranışı</h2>
+            <p>Uygulamayı kullanırken aşağıdakileri yapmamayı kabul edersiniz:</p>
+            <ul>
+                <li>Yasadışı faaliyetlerde bulunmak</li>
+                <li>Diğer kullanıcılara zarar vermek veya taciz etmek</li>
+                <li>Hile yapmak veya oyun dengesini bozmak</li>
+                <li>Uygulamanın güvenliğini tehlikeye atmak</li>
+                <li>Sahte hesaplar oluşturmak</li>
+            </ul>
+
+            <h2>6. Fikri Mülkiyet</h2>
+            <p>Uygulamadaki tüm içerik, tasarım ve markalar Find2Sing'e veya lisans verenlerine aittir. İçeriği izinsiz kopyalamak, dağıtmak veya değiştirmek yasaktır.</p>
+
+            <h2>7. Sorumluluk Reddi</h2>
+            <p>Uygulama "olduğu gibi" sunulmaktadır. Find2Sing:</p>
+            <ul>
+                <li>Kesintisiz veya hatasız hizmet garantisi vermez</li>
+                <li>İçerik doğruluğu konusunda garanti vermez</li>
+                <li>Teknik sorunlardan kaynaklanan kayıplardan sorumlu değildir</li>
+            </ul>
+
+            <h2>8. Hizmet Değişiklikleri</h2>
+            <p>Find2Sing, herhangi bir zamanda:</p>
+            <ul>
+                <li>Hizmetleri değiştirebilir veya güncelleyebilir</li>
+                <li>Özellikleri ekleyebilir veya kaldırabilir</li>
+                <li>Fiyatları değiştirebilir (mevcut abonelikleri etkilemez)</li>
+            </ul>
+
+            <h2>9. Hesap Sonlandırma</h2>
+            <p>Bu şartların ihlali durumunda hesabınız önceden haber verilmeksizin askıya alınabilir veya sonlandırılabilir.</p>
+
+            <h2>10. Uygulanacak Hukuk</h2>
+            <p>Bu şartlar Türkiye Cumhuriyeti yasalarına tabidir. Uyuşmazlıklar Türkiye mahkemelerinde çözülecektir.</p>
+
+            <h2>11. Şartlarda Değişiklikler</h2>
+            <p>Bu şartlar güncellenebilir. Önemli değişiklikler uygulama içinden bildirilecektir. Değişikliklerden sonra uygulamayı kullanmaya devam etmeniz, yeni şartları kabul ettiğiniz anlamına gelir.</p>
+
+            <div class="contact">
+                <h2>12. İletişim</h2>
+                <p>Sorularınız için:</p>
+                <p>E-posta: <a href="mailto:tbsocial.tiktok@gmail.com">tbsocial.tiktok@gmail.com</a></p>
+            </div>
         </div>
 
-        <h2>1. Hizmetin Kabulu</h2>
-        <p>Find2Sing uygulamasını ("Uygulama") indirerek, kurarak veya kullanarak, bu Kullanım Şartlarını kabul etmiş sayılırsınız. Bu şartları kabul etmiyorsanız, lütfen uygulamayı kullanmayınız.</p>
+        <!-- ENGLISH CONTENT -->
+        <div class="content-en">
+            <h1>Terms of Service</h1>
+            <p class="update-date">Last Updated: January 11, 2025</p>
 
-        <h2>2. Hizmet Açıklaması</h2>
-        <p>Find2Sing, kullanıcıların müzik bilgilerini test edebilecekleri eğlenceli bir oyundur. Uygulama şunları içerir:</p>
-        <ul>
-            <li>Tek oyunculu ve çok oyunculu oyun modları</li>
-            <li>Challenge'lar ve kategoriler</li>
-            <li>Liderlik tabloları</li>
-            <li>Premium abonelik seçenekleri</li>
-        </ul>
+            <div class="highlight">
+                <strong>Summary:</strong> By using Find2Sing, you agree to these terms. Please read carefully.
+            </div>
 
-        <h2>3. Hesap Oluşturma</h2>
-        <p>Bazı özellikleri kullanmak için hesap oluşturmanız gerekebilir. Hesap oluştururken:</p>
-        <ul>
-            <li>Doğru ve güncel bilgiler vermeyi kabul edersiniz</li>
-            <li>Hesap güvenliğinizden siz sorumlusunuz</li>
-            <li>Hesabınızı başkalarıyla paylaşmamalısınız</li>
-        </ul>
+            <h2>1. Acceptance of Service</h2>
+            <p>By downloading, installing, or using the Find2Sing application ("App"), you agree to these Terms of Service. If you do not accept these terms, please do not use the application.</p>
 
-        <h2>4. Satın Almalar ve Abonelikler</h2>
-        <p>Uygulama içi satın almalar ve abonelikler için:</p>
-        <ul>
-            <li><strong>Premium Abonelik:</strong> Aylık veya yıllık olarak sunulur</li>
-            <li><strong>Otomatik Yenileme:</strong> Abonelikler, iptal edilmedikçe otomatik yenilenir</li>
-            <li><strong>İptal:</strong> Aboneliğinizi App Store/Google Play ayarlarından iptal edebilirsiniz</li>
-            <li><strong>İade:</strong> İadeler, ilgili uygulama mağazasının politikalarına tabidir</li>
-        </ul>
+            <h2>2. Service Description</h2>
+            <p>Find2Sing is an entertaining game where users can test their music knowledge. The application includes:</p>
+            <ul>
+                <li>Single-player and multiplayer game modes</li>
+                <li>Challenges and categories</li>
+                <li>Leaderboards</li>
+                <li>Premium subscription options</li>
+            </ul>
 
-        <div class="warning">
-            <strong>Önemli:</strong> Aboneliğinizi dönem bitiminden en az 24 saat önce iptal etmezseniz, otomatik olarak yenilenir.
-        </div>
+            <h2>3. Account Creation</h2>
+            <p>You may need to create an account to use certain features. When creating an account:</p>
+            <ul>
+                <li>You agree to provide accurate and current information</li>
+                <li>You are responsible for your account security</li>
+                <li>You should not share your account with others</li>
+            </ul>
 
-        <h2>5. Kullanıcı Davranışı</h2>
-        <p>Uygulamayı kullanırken aşağıdakileri yapmamayı kabul edersiniz:</p>
-        <ul>
-            <li>Yasadışı faaliyetlerde bulunmak</li>
-            <li>Diğer kullanıcılara zarar vermek veya taciz etmek</li>
-            <li>Hile yapmak veya oyun dengesini bozmak</li>
-            <li>Uygulamanın güvenliğini tehlikeye atmak</li>
-            <li>Sahte hesaplar oluşturmak</li>
-        </ul>
+            <h2>4. Purchases and Subscriptions</h2>
+            <p>For in-app purchases and subscriptions:</p>
+            <ul>
+                <li><strong>Premium Subscription:</strong> Offered monthly or annually</li>
+                <li><strong>Auto-Renewal:</strong> Subscriptions automatically renew unless cancelled</li>
+                <li><strong>Cancellation:</strong> You can cancel your subscription through App Store/Google Play settings</li>
+                <li><strong>Refunds:</strong> Refunds are subject to the respective app store's policies</li>
+            </ul>
 
-        <h2>6. Fikri Mülkiyet</h2>
-        <p>Uygulamadaki tüm içerik, tasarım ve markalar Find2Sing'e veya lisans verenlerine aittir. İçeriği izinsiz kopyalamak, dağıtmak veya değiştirmek yasaktır.</p>
+            <div class="warning">
+                <strong>Important:</strong> If you do not cancel your subscription at least 24 hours before the end of the current period, it will automatically renew.
+            </div>
 
-        <h2>7. Sorumluluk Reddi</h2>
-        <p>Uygulama "olduğu gibi" sunulmaktadır. Find2Sing:</p>
-        <ul>
-            <li>Kesintisiz veya hatasız hizmet garantisi vermez</li>
-            <li>İçerik doğruluğu konusunda garanti vermez</li>
-            <li>Teknik sorunlardan kaynaklanan kayıplardan sorumlu değildir</li>
-        </ul>
+            <h2>5. User Conduct</h2>
+            <p>When using the application, you agree not to:</p>
+            <ul>
+                <li>Engage in illegal activities</li>
+                <li>Harm or harass other users</li>
+                <li>Cheat or disrupt game balance</li>
+                <li>Compromise the security of the application</li>
+                <li>Create fake accounts</li>
+            </ul>
 
-        <h2>8. Hizmet Değişiklikleri</h2>
-        <p>Find2Sing, herhangi bir zamanda:</p>
-        <ul>
-            <li>Hizmetleri değiştirebilir veya güncelleyebilir</li>
-            <li>Özellikleri ekleyebilir veya kaldırabilir</li>
-            <li>Fiyatları değiştirebilir (mevcut abonelikleri etkilemez)</li>
-        </ul>
+            <h2>6. Intellectual Property</h2>
+            <p>All content, designs, and trademarks in the application belong to Find2Sing or its licensors. Unauthorized copying, distribution, or modification of content is prohibited.</p>
 
-        <h2>9. Hesap Sonlandırma</h2>
-        <p>Bu şartların ihlali durumunda hesabınız önceden haber verilmeksizin askıya alınabilir veya sonlandırılabilir.</p>
+            <h2>7. Disclaimer</h2>
+            <p>The application is provided "as is". Find2Sing:</p>
+            <ul>
+                <li>Does not guarantee uninterrupted or error-free service</li>
+                <li>Does not guarantee content accuracy</li>
+                <li>Is not responsible for losses due to technical issues</li>
+            </ul>
 
-        <h2>10. Uygulanacak Hukuk</h2>
-        <p>Bu şartlar Türkiye Cumhuriyeti yasalarına tabidir. Uyuşmazlıklar Türkiye mahkemelerinde çözülecektir.</p>
+            <h2>8. Service Changes</h2>
+            <p>Find2Sing may at any time:</p>
+            <ul>
+                <li>Modify or update services</li>
+                <li>Add or remove features</li>
+                <li>Change prices (does not affect existing subscriptions)</li>
+            </ul>
 
-        <h2>11. Şartlarda Değişiklikler</h2>
-        <p>Bu şartlar güncellenebilir. Önemli değişiklikler uygulama içinden bildirilecektir. Değişikliklerden sonra uygulamayı kullanmaya devam etmeniz, yeni şartları kabul ettiğiniz anlamına gelir.</p>
+            <h2>9. Account Termination</h2>
+            <p>In case of violation of these terms, your account may be suspended or terminated without prior notice.</p>
 
-        <div class="contact">
-            <h2>12. İletişim</h2>
-            <p>Sorularınız için:</p>
-            <p>E-posta: <a href="mailto:talhayildiz94@gmail.com">talhayildiz94@gmail.com</a></p>
+            <h2>10. Governing Law</h2>
+            <p>These terms are governed by the laws of the Republic of Turkey. Disputes will be resolved in Turkish courts.</p>
+
+            <h2>11. Changes to Terms</h2>
+            <p>These terms may be updated. Significant changes will be notified through the application. Continuing to use the application after changes means you accept the new terms.</p>
+
+            <div class="contact">
+                <h2>12. Contact</h2>
+                <p>For questions:</p>
+                <p>Email: <a href="mailto:tbsocial.tiktok@gmail.com">tbsocial.tiktok@gmail.com</a></p>
+            </div>
         </div>
     </div>
+
+    <script>
+        function switchLang(lang) {
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.content-tr, .content-en').forEach(content => content.classList.remove('active'));
+
+            if (lang === 'tr') {
+                document.querySelector('.lang-btn:first-child').classList.add('active');
+                document.querySelector('.content-tr').classList.add('active');
+            } else {
+                document.querySelector('.lang-btn:last-child').classList.add('active');
+                document.querySelector('.content-en').classList.add('active');
+            }
+        }
+
+        // Check browser language
+        if (navigator.language && !navigator.language.startsWith('tr')) {
+            switchLang('en');
+        }
+    </script>
 </body>
 </html>

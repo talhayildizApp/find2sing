@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gizlilik Politikası - Find2Sing</title>
+    <title>Gizlilik Politikası / Privacy Policy - Find2Sing</title>
     <style>
         * {
             margin: 0;
@@ -25,6 +25,30 @@
             border-radius: 20px;
             padding: 40px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .lang-switcher {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .lang-btn {
+            padding: 8px 16px;
+            border: 2px solid #CAB7FF;
+            border-radius: 20px;
+            background: white;
+            color: #394272;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .lang-btn.active {
+            background: #CAB7FF;
+            color: white;
+        }
+        .lang-btn:hover {
+            background: #CAB7FF;
+            color: white;
         }
         h1 {
             color: #CAB7FF;
@@ -72,73 +96,174 @@
             font-size: 40px;
             margin-bottom: 20px;
         }
+        .content-tr, .content-en {
+            display: none;
+        }
+        .content-tr.active, .content-en.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">🎵</div>
-        <h1>Gizlilik Politikası</h1>
-        <p class="update-date">Son Güncelleme: 11 Ocak 2025</p>
-
-        <div class="highlight">
-            <strong>Özet:</strong> Find2Sing, kullanıcı gizliliğine saygı gösterir. Sadece oyun deneyiminizi iyileştirmek için gerekli verileri toplar ve üçüncü taraflarla paylaşmayız.
+        <div class="lang-switcher">
+            <button class="lang-btn active" onclick="switchLang('tr')">Türkçe</button>
+            <button class="lang-btn" onclick="switchLang('en')">English</button>
         </div>
 
-        <h2>1. Toplanan Bilgiler</h2>
-        <p>Find2Sing uygulaması aşağıdaki bilgileri toplayabilir:</p>
-        <ul>
-            <li><strong>Hesap Bilgileri:</strong> E-posta adresi, kullanıcı adı (Google/Apple ile giriş yapıldığında)</li>
-            <li><strong>Oyun Verileri:</strong> Skorlar, tamamlanan challenge'lar, oyun istatistikleri</li>
-            <li><strong>Cihaz Bilgileri:</strong> Cihaz türü, işletim sistemi versiyonu (hata ayıklama için)</li>
-        </ul>
+        <div class="logo">🎵</div>
 
-        <h2>2. Bilgilerin Kullanımı</h2>
-        <p>Topladığımız bilgiler şu amaçlarla kullanılır:</p>
-        <ul>
-            <li>Hesabınızı oluşturmak ve yönetmek</li>
-            <li>Oyun ilerlemenizi kaydetmek</li>
-            <li>Liderlik tablolarını göstermek</li>
-            <li>Uygulama performansını iyileştirmek</li>
-            <li>Teknik sorunları çözmek</li>
-        </ul>
+        <!-- TÜRKÇE İÇERİK -->
+        <div class="content-tr active">
+            <h1>Gizlilik Politikası</h1>
+            <p class="update-date">Son Güncelleme: 11 Ocak 2025</p>
 
-        <h2>3. Bilgi Paylaşımı</h2>
-        <p>Kişisel bilgilerinizi üçüncü taraflarla <strong>satmayız veya kiralamayız</strong>. Bilgiler yalnızca şu durumlarda paylaşılabilir:</p>
-        <ul>
-            <li>Yasal zorunluluk durumunda</li>
-            <li>Hizmet sağlayıcılarımızla (Firebase, Google Analytics) - sadece hizmeti sunmak için gerekli olanlar</li>
-        </ul>
+            <div class="highlight">
+                <strong>Özet:</strong> Find2Sing, kullanıcı gizliliğine saygı gösterir. Sadece oyun deneyiminizi iyileştirmek için gerekli verileri toplar ve üçüncü taraflarla paylaşmayız.
+            </div>
 
-        <h2>4. Reklamlar</h2>
-        <p>Uygulamamızda Google AdMob reklamları gösterilmektedir. AdMob, reklam deneyimini kişiselleştirmek için cihaz tanımlayıcıları kullanabilir. Reklam tercihlerinizi cihaz ayarlarınızdan yönetebilirsiniz.</p>
+            <h2>1. Toplanan Bilgiler</h2>
+            <p>Find2Sing uygulaması aşağıdaki bilgileri toplayabilir:</p>
+            <ul>
+                <li><strong>Hesap Bilgileri:</strong> E-posta adresi, kullanıcı adı (Google/Apple ile giriş yapıldığında)</li>
+                <li><strong>Oyun Verileri:</strong> Skorlar, tamamlanan challenge'lar, oyun istatistikleri</li>
+                <li><strong>Cihaz Bilgileri:</strong> Cihaz türü, işletim sistemi versiyonu (hata ayıklama için)</li>
+            </ul>
 
-        <h2>5. Veri Güvenliği</h2>
-        <p>Verilerinizi korumak için endüstri standardı güvenlik önlemleri kullanıyoruz:</p>
-        <ul>
-            <li>SSL/TLS şifreleme</li>
-            <li>Firebase güvenlik kuralları</li>
-            <li>Düzenli güvenlik güncellemeleri</li>
-        </ul>
+            <h2>2. Bilgilerin Kullanımı</h2>
+            <p>Topladığımız bilgiler şu amaçlarla kullanılır:</p>
+            <ul>
+                <li>Hesabınızı oluşturmak ve yönetmek</li>
+                <li>Oyun ilerlemenizi kaydetmek</li>
+                <li>Liderlik tablolarını göstermek</li>
+                <li>Uygulama performansını iyileştirmek</li>
+                <li>Teknik sorunları çözmek</li>
+            </ul>
 
-        <h2>6. Çocukların Gizliliği</h2>
-        <p>Find2Sing, 13 yaşın altındaki çocuklardan bilerek kişisel bilgi toplamaz. Ebeveynler, çocuklarının bilgilerinin toplandığını düşünüyorsa bizimle iletişime geçebilir.</p>
+            <h2>3. Bilgi Paylaşımı</h2>
+            <p>Kişisel bilgilerinizi üçüncü taraflarla <strong>satmayız veya kiralamayız</strong>. Bilgiler yalnızca şu durumlarda paylaşılabilir:</p>
+            <ul>
+                <li>Yasal zorunluluk durumunda</li>
+                <li>Hizmet sağlayıcılarımızla (Firebase, Google Analytics) - sadece hizmeti sunmak için gerekli olanlar</li>
+            </ul>
 
-        <h2>7. Haklarınız</h2>
-        <p>Aşağıdaki haklara sahipsiniz:</p>
-        <ul>
-            <li>Verilerinize erişim talep etme</li>
-            <li>Verilerinizin düzeltilmesini isteme</li>
-            <li>Hesabınızı ve verilerinizi silme</li>
-        </ul>
+            <h2>4. Reklamlar</h2>
+            <p>Uygulamamızda Google AdMob reklamları gösterilmektedir. AdMob, reklam deneyimini kişiselleştirmek için cihaz tanımlayıcıları kullanabilir. Reklam tercihlerinizi cihaz ayarlarınızdan yönetebilirsiniz.</p>
 
-        <h2>8. Değişiklikler</h2>
-        <p>Bu gizlilik politikası zaman zaman güncellenebilir. Önemli değişiklikler uygulama içinden bildirilecektir.</p>
+            <h2>5. Veri Güvenliği</h2>
+            <p>Verilerinizi korumak için endüstri standardı güvenlik önlemleri kullanıyoruz:</p>
+            <ul>
+                <li>SSL/TLS şifreleme</li>
+                <li>Firebase güvenlik kuralları</li>
+                <li>Düzenli güvenlik güncellemeleri</li>
+            </ul>
 
-        <div class="contact">
-            <h2>9. İletişim</h2>
-            <p>Gizlilik ile ilgili sorularınız için:</p>
-            <p>E-posta: <a href="mailto:talhayildiz94@gmail.com">talhayildiz94@gmail.com</a></p>
+            <h2>6. Çocukların Gizliliği</h2>
+            <p>Find2Sing, 13 yaşın altındaki çocuklardan bilerek kişisel bilgi toplamaz. Ebeveynler, çocuklarının bilgilerinin toplandığını düşünüyorsa bizimle iletişime geçebilir.</p>
+
+            <h2>7. Haklarınız</h2>
+            <p>Aşağıdaki haklara sahipsiniz:</p>
+            <ul>
+                <li>Verilerinize erişim talep etme</li>
+                <li>Verilerinizin düzeltilmesini isteme</li>
+                <li>Hesabınızı ve verilerinizi silme</li>
+            </ul>
+
+            <h2>8. Değişiklikler</h2>
+            <p>Bu gizlilik politikası zaman zaman güncellenebilir. Önemli değişiklikler uygulama içinden bildirilecektir.</p>
+
+            <div class="contact">
+                <h2>9. İletişim</h2>
+                <p>Gizlilik ile ilgili sorularınız için:</p>
+                <p>E-posta: <a href="mailto:tbsocial.tiktok@gmail.com">tbsocial.tiktok@gmail.com</a></p>
+            </div>
+        </div>
+
+        <!-- ENGLISH CONTENT -->
+        <div class="content-en">
+            <h1>Privacy Policy</h1>
+            <p class="update-date">Last Updated: January 11, 2025</p>
+
+            <div class="highlight">
+                <strong>Summary:</strong> Find2Sing respects user privacy. We only collect data necessary to improve your gaming experience and do not share it with third parties.
+            </div>
+
+            <h2>1. Information We Collect</h2>
+            <p>The Find2Sing application may collect the following information:</p>
+            <ul>
+                <li><strong>Account Information:</strong> Email address, username (when signing in with Google/Apple)</li>
+                <li><strong>Game Data:</strong> Scores, completed challenges, game statistics</li>
+                <li><strong>Device Information:</strong> Device type, operating system version (for debugging)</li>
+            </ul>
+
+            <h2>2. Use of Information</h2>
+            <p>The information we collect is used for the following purposes:</p>
+            <ul>
+                <li>To create and manage your account</li>
+                <li>To save your game progress</li>
+                <li>To display leaderboards</li>
+                <li>To improve application performance</li>
+                <li>To resolve technical issues</li>
+            </ul>
+
+            <h2>3. Information Sharing</h2>
+            <p>We <strong>do not sell or rent</strong> your personal information to third parties. Information may only be shared in the following situations:</p>
+            <ul>
+                <li>When required by law</li>
+                <li>With our service providers (Firebase, Google Analytics) - only what is necessary to provide the service</li>
+            </ul>
+
+            <h2>4. Advertisements</h2>
+            <p>Our application displays Google AdMob advertisements. AdMob may use device identifiers to personalize your ad experience. You can manage your ad preferences through your device settings.</p>
+
+            <h2>5. Data Security</h2>
+            <p>We use industry-standard security measures to protect your data:</p>
+            <ul>
+                <li>SSL/TLS encryption</li>
+                <li>Firebase security rules</li>
+                <li>Regular security updates</li>
+            </ul>
+
+            <h2>6. Children's Privacy</h2>
+            <p>Find2Sing does not knowingly collect personal information from children under 13 years of age. Parents who believe their children's information has been collected may contact us.</p>
+
+            <h2>7. Your Rights</h2>
+            <p>You have the following rights:</p>
+            <ul>
+                <li>Request access to your data</li>
+                <li>Request correction of your data</li>
+                <li>Delete your account and data</li>
+            </ul>
+
+            <h2>8. Changes</h2>
+            <p>This privacy policy may be updated from time to time. Significant changes will be notified through the application.</p>
+
+            <div class="contact">
+                <h2>9. Contact</h2>
+                <p>For questions about privacy:</p>
+                <p>Email: <a href="mailto:tbsocial.tiktok@gmail.com">tbsocial.tiktok@gmail.com</a></p>
+            </div>
         </div>
     </div>
+
+    <script>
+        function switchLang(lang) {
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.content-tr, .content-en').forEach(content => content.classList.remove('active'));
+
+            if (lang === 'tr') {
+                document.querySelector('.lang-btn:first-child').classList.add('active');
+                document.querySelector('.content-tr').classList.add('active');
+            } else {
+                document.querySelector('.lang-btn:last-child').classList.add('active');
+                document.querySelector('.content-en').classList.add('active');
+            }
+        }
+
+        // Check browser language
+        if (navigator.language && !navigator.language.startsWith('tr')) {
+            switchLang('en');
+        }
+    </script>
 </body>
 </html>
