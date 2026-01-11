@@ -5,6 +5,8 @@ import '../../models/challenge_model.dart';
 import '../../models/user_model.dart';
 import '../../services/challenge_service.dart';
 import '../../services/access_control_service.dart';
+import '../../services/purchase_service.dart';
+import '../premium/premium_screen.dart';
 import 'challenge_detail_screen.dart';
 
 class CategoryDetailScreen extends StatefulWidget {
@@ -21,6 +23,7 @@ class CategoryDetailScreen extends StatefulWidget {
 
 class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   final ChallengeService _challengeService = ChallengeService();
+  final PurchaseService _purchaseService = PurchaseService();
   bool _isPurchasing = false;
 
   @override
@@ -611,7 +614,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             const SizedBox(height: 12),
             GestureDetector(
               onTap: () {
-                // TODO: Premium ekranına git
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PremiumScreen()),
+                );
               },
               child: RichText(
                 text: TextSpan(
@@ -647,19 +653,42 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   }
 
   Future<void> _handlePurchase(BuildContext context) async {
+    final user = context.read<AuthProvider>().user;
+    if (user == null || user.isGuest) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Satın alma için giriş yapmanız gerekiyor'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isPurchasing = true);
 
     try {
-      // TODO: Gerçek satın alma işlemi
-      await Future.delayed(const Duration(seconds: 2));
+      final success = await _purchaseService.buyCategory(
+        widget.category.id,
+        user.uid,
+      );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Satın alma işlemi yapılacak (In-App Purchase)'),
-            backgroundColor: Color(0xFFFFB958),
-          ),
-        );
+        if (success) {
+          await context.read<AuthProvider>().refreshUser();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${widget.category.title} satın alındı!'),
+              backgroundColor: const Color(0xFF4CAF50),
+            ),
+          );
+        } else if (_purchaseService.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_purchaseService.errorMessage!),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {

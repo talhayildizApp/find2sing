@@ -5,6 +5,7 @@ import '../../models/challenge_model.dart';
 import '../../models/user_model.dart';
 import '../../services/challenge_service.dart';
 import '../../services/access_control_service.dart';
+import '../../services/purchase_service.dart';
 import '../../widgets/app_card_system.dart';
 import '../auth/login_screen.dart';
 import '../auth/profile_screen.dart';
@@ -20,10 +21,12 @@ class ChallengeScreen extends StatefulWidget {
 
 class _ChallengeScreenState extends State<ChallengeScreen> {
   final ChallengeService _challengeService = ChallengeService();
+  final PurchaseService _purchaseService = PurchaseService();
   String _selectedLanguage = 'tr';
   String? _selectedCategoryId;
   String? _selectedCategoryTitle;
   CategoryModel? _selectedCategory;
+  bool _isPurchasingCategory = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1190,14 +1193,9 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Kategori satın alma yakında!'),
-                                      backgroundColor: Color(0xFFFFB300),
-                                    ),
-                                  );
-                                },
+                                onTap: _isPurchasingCategory
+                                    ? null
+                                    : () => _handleCategoryPurchase(category),
                                 borderRadius: BorderRadius.circular(16),
                                 child: Ink(
                                   decoration: BoxDecoration(
@@ -1749,6 +1747,51 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _handleCategoryPurchase(CategoryModel category) async {
+    final user = context.read<AuthProvider>().user;
+    if (user == null || user.isGuest) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Satın alma için giriş yapmanız gerekiyor'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isPurchasingCategory = true);
+
+    try {
+      final success = await _purchaseService.buyCategory(
+        category.id,
+        user.uid,
+      );
+
+      if (mounted) {
+        if (success) {
+          await context.read<AuthProvider>().refreshUser();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${category.title} satın alındı!'),
+              backgroundColor: const Color(0xFF4CAF50),
+            ),
+          );
+        } else if (_purchaseService.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_purchaseService.errorMessage!),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPurchasingCategory = false);
+      }
+    }
   }
 }
 
