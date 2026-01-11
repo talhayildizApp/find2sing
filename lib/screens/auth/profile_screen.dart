@@ -7,6 +7,7 @@ import '../../models/user_model.dart';
 import '../../services/player_id_service.dart';
 import '../../services/admin_auth_service.dart';
 import '../../widgets/profile_ui_components.dart';
+import 'activity_history_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -302,10 +303,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 activities: _buildRecentActivities(user),
                 onSeeAll: user != null && user.gamesPlayed > 0
                     ? () {
-                        // TODO: Navigate to full activity history
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Aktivite geçmişi yakında!'),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ActivityHistoryScreen(),
                           ),
                         );
                       }
