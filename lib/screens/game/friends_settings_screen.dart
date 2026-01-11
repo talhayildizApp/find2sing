@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/match_intent_model.dart';
 import '../../widgets/local_game_ui_components.dart';
 import '../online/online_match_screen.dart';
+import '../premium/premium_screen.dart';
 import 'friend_game_screen.dart';
 import 'game_config.dart';
 
@@ -732,7 +733,10 @@ class _FriendsSettingsScreenState extends State<FriendsSettingsScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: Premium sayfasına git
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PremiumScreen()),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFB958),

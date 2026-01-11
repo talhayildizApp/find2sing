@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/game_room_model.dart';
 import '../../models/match_intent_model.dart';
 import '../../models/challenge_model.dart';
+import '../../services/ad_service.dart';
 import '../../services/challenge_online_service.dart';
 import '../../services/haptic_service.dart';
 import '../../services/rewards_service.dart';
@@ -55,6 +56,7 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
     with TickerProviderStateMixin {
   final _gameService = ChallengeOnlineService();
   final _rewardsService = RewardsService();
+  final _adService = AdService();
 
   StreamSubscription<GameRoomModel?>? _roomSubscription;
   GameRoomModel? _room;
@@ -2002,8 +2004,21 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
 
     setState(() => _isWatchingAd = true);
 
-    // TODO: Gerçek reklam SDK entegrasyonu
-    await Future.delayed(const Duration(seconds: 2));
+    // Gerçek reklam göster
+    final adShown = await _adService.showRewardedAd(user.tier);
+
+    if (adShown <= 0) {
+      setState(() => _isWatchingAd = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reklam yüklenemedi. Lütfen tekrar deneyin.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
 
     final result = await _rewardsService.watchAdForChallengeJoker(user, jokerIndex);
 

@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/purchase_service.dart';
 
@@ -31,6 +32,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
     setState(() => _isLoading = true);
     await _purchaseService.loadPremiumProducts();
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -546,9 +554,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: () {
-                // TODO: Gizlilik politikası sayfası
-              },
+              onTap: () => _launchUrl('https://find2sing.web.app/privacy.html'),
               child: Text(
                 'Gizlilik Politikası',
                 style: TextStyle(
@@ -560,9 +566,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
             ),
             const SizedBox(width: 20),
             GestureDetector(
-              onTap: () {
-                // TODO: Kullanım şartları sayfası
-              },
+              onTap: () => _launchUrl('https://find2sing.web.app/terms.html'),
               child: Text(
                 'Kullanım Şartları',
                 style: TextStyle(
