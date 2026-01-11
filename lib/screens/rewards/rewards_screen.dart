@@ -11,6 +11,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/ad_service.dart';
 import '../../services/rewards_service.dart';
+import '../premium/premium_screen.dart';
 
 class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
@@ -651,12 +652,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
   Widget _buildPremiumPromo() {
     return GestureDetector(
       onTap: () {
-        // TODO: Premium satın alma ekranına git
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Premium satın alma yakında!'),
-            backgroundColor: Color(0xFF667eea),
-          ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PremiumScreen()),
         );
       },
       child: Container(
