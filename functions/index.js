@@ -1,7 +1,9 @@
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
-admin.initializeApp();
+initializeApp();
 
 // Admin email whitelist - guvenlik icin server-side
 const ADMIN_EMAILS = ["talhayildiz94@gmail.com"];
@@ -10,50 +12,55 @@ const ADMIN_EMAILS = ["talhayildiz94@gmail.com"];
  * Set admin custom claim for a user
  * Callable function - requires authentication
  */
-exports.setAdminClaim = functions.https.onCall(async (data, context) => {
+exports.setAdminClaim = onCall(async (request) => {
+  const context = request.auth;
+
   // Verify the caller is already an admin or is in the whitelist
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+  if (!context) {
+    throw new HttpsError(
       "unauthenticated",
       "Giris yapmaniz gerekiyor."
     );
   }
 
-  const callerEmail = context.auth.token.email?.toLowerCase();
-  const isCallerAdmin = context.auth.token.admin === true;
+  const callerEmail = context.token.email?.toLowerCase();
+  const isCallerAdmin = context.token.admin === true;
   const isCallerWhitelisted = ADMIN_EMAILS.includes(callerEmail);
 
   if (!isCallerAdmin && !isCallerWhitelisted) {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "permission-denied",
       "Bu islemi yapmaya yetkiniz yok."
     );
   }
 
-  const { email } = data;
+  const { email } = request.data;
   if (!email || typeof email !== "string") {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "invalid-argument",
       "Gecerli bir email adresi gerekli."
     );
   }
 
   try {
-    const user = await admin.auth().getUserByEmail(email.toLowerCase());
-    await admin.auth().setCustomUserClaims(user.uid, { admin: true });
+    const auth = getAuth();
+    const db = getFirestore();
+
+    const user = await auth.getUserByEmail(email.toLowerCase());
+    await auth.setCustomUserClaims(user.uid, { admin: true });
 
     // Log the action
-    await admin.firestore().collection("adminLogs").add({
+    await db.collection("adminLogs").add({
       action: "setAdminClaim",
       targetEmail: email.toLowerCase(),
       performedBy: callerEmail,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     return { success: true, message: `${email} admin olarak ayarlandi.` };
   } catch (error) {
     console.error("setAdminClaim error:", error);
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "internal",
       `Hata: ${error.message}`
     );
@@ -63,28 +70,30 @@ exports.setAdminClaim = functions.https.onCall(async (data, context) => {
 /**
  * Remove admin custom claim from a user
  */
-exports.removeAdminClaim = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.removeAdminClaim = onCall(async (request) => {
+  const context = request.auth;
+
+  if (!context) {
+    throw new HttpsError(
       "unauthenticated",
       "Giris yapmaniz gerekiyor."
     );
   }
 
-  const callerEmail = context.auth.token.email?.toLowerCase();
-  const isCallerAdmin = context.auth.token.admin === true;
+  const callerEmail = context.token.email?.toLowerCase();
+  const isCallerAdmin = context.token.admin === true;
   const isCallerWhitelisted = ADMIN_EMAILS.includes(callerEmail);
 
   if (!isCallerAdmin && !isCallerWhitelisted) {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "permission-denied",
       "Bu islemi yapmaya yetkiniz yok."
     );
   }
 
-  const { email } = data;
+  const { email } = request.data;
   if (!email || typeof email !== "string") {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "invalid-argument",
       "Gecerli bir email adresi gerekli."
     );
@@ -92,27 +101,30 @@ exports.removeAdminClaim = functions.https.onCall(async (data, context) => {
 
   // Prevent removing own admin status
   if (email.toLowerCase() === callerEmail) {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "failed-precondition",
       "Kendi admin yetkinizi kaldiramazsiniz."
     );
   }
 
   try {
-    const user = await admin.auth().getUserByEmail(email.toLowerCase());
-    await admin.auth().setCustomUserClaims(user.uid, { admin: false });
+    const auth = getAuth();
+    const db = getFirestore();
 
-    await admin.firestore().collection("adminLogs").add({
+    const user = await auth.getUserByEmail(email.toLowerCase());
+    await auth.setCustomUserClaims(user.uid, { admin: false });
+
+    await db.collection("adminLogs").add({
       action: "removeAdminClaim",
       targetEmail: email.toLowerCase(),
       performedBy: callerEmail,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     });
 
     return { success: true, message: `${email} admin yetkisi kaldirildi.` };
   } catch (error) {
     console.error("removeAdminClaim error:", error);
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "internal",
       `Hata: ${error.message}`
     );
@@ -123,19 +135,22 @@ exports.removeAdminClaim = functions.https.onCall(async (data, context) => {
  * Check if current user is admin
  * Returns admin status based on custom claims
  */
-exports.checkAdminStatus = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
+exports.checkAdminStatus = onCall(async (request) => {
+  const context = request.auth;
+
+  if (!context) {
     return { isAdmin: false, reason: "not_authenticated" };
   }
 
-  const email = context.auth.token.email?.toLowerCase();
-  const hasAdminClaim = context.auth.token.admin === true;
+  const email = context.token.email?.toLowerCase();
+  const hasAdminClaim = context.token.admin === true;
   const isWhitelisted = ADMIN_EMAILS.includes(email);
 
   // If whitelisted but no claim yet, auto-grant
   if (isWhitelisted && !hasAdminClaim) {
     try {
-      await admin.auth().setCustomUserClaims(context.auth.uid, { admin: true });
+      const auth = getAuth();
+      await auth.setCustomUserClaims(context.uid, { admin: true });
       return { isAdmin: true, reason: "whitelisted_auto_granted" };
     } catch (error) {
       console.error("Auto-grant admin error:", error);
@@ -152,25 +167,27 @@ exports.checkAdminStatus = functions.https.onCall(async (data, context) => {
  * Get admin dashboard stats
  * Aggregates user and game metrics
  */
-exports.getAdminStats = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
+exports.getAdminStats = onCall(async (request) => {
+  const context = request.auth;
+
+  if (!context) {
+    throw new HttpsError(
       "unauthenticated",
       "Giris yapmaniz gerekiyor."
     );
   }
 
-  const isAdmin = context.auth.token.admin === true ||
-                  ADMIN_EMAILS.includes(context.auth.token.email?.toLowerCase());
+  const isAdmin = context.token.admin === true ||
+                  ADMIN_EMAILS.includes(context.token.email?.toLowerCase());
 
   if (!isAdmin) {
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "permission-denied",
       "Admin yetkisi gerekli."
     );
   }
 
-  const db = admin.firestore();
+  const db = getFirestore();
   const now = new Date();
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -232,7 +249,7 @@ exports.getAdminStats = functions.https.onCall(async (data, context) => {
     };
   } catch (error) {
     console.error("getAdminStats error:", error);
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       "internal",
       `Istatistik alinamadi: ${error.message}`
     );
