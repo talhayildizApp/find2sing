@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/ad_service.dart';
 import '../../services/rewards_service.dart';
 
 class RewardsScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class RewardsScreen extends StatefulWidget {
 
 class _RewardsScreenState extends State<RewardsScreen> {
   final RewardsService _rewardsService = RewardsService();
+  final AdService _adService = AdService();
   bool _isWatchingAd = false;
   int? _watchingJokerIndex; // Challenge joker için hangi index'e reklam izleniyor
 
@@ -732,23 +734,38 @@ class _RewardsScreenState extends State<RewardsScreen> {
       _watchingJokerIndex = null;
     });
 
-    // TODO: Gerçek reklam SDK entegrasyonu
-    await Future.delayed(const Duration(seconds: 2));
+    // Gerçek reklam göster
+    final adShown = await _adService.showRewardedAd(user.tier);
 
-    final result = await _rewardsService.watchAdForCredits(user);
+    if (adShown > 0) {
+      // Reklam başarıyla izlendi, ödülü kaydet
+      final result = await _rewardsService.watchAdForCredits(user);
 
-    setState(() => _isWatchingAd = false);
+      setState(() => _isWatchingAd = false);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message ?? (result.success ? 'Başarılı!' : 'Hata!')),
-          backgroundColor: result.success ? const Color(0xFF4CAF50) : Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? (result.success ? 'Başarılı!' : 'Hata!')),
+            backgroundColor: result.success ? const Color(0xFF4CAF50) : Colors.red,
+          ),
+        );
 
-      if (result.success) {
-        await context.read<AuthProvider>().refreshUser();
+        if (result.success) {
+          await context.read<AuthProvider>().refreshUser();
+        }
+      }
+    } else {
+      // Reklam gösterilemedi
+      setState(() => _isWatchingAd = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reklam yüklenemedi. Lütfen tekrar deneyin.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     }
   }
@@ -760,26 +777,44 @@ class _RewardsScreenState extends State<RewardsScreen> {
       _watchingJokerIndex = jokerIndex;
     });
 
-    // TODO: Gerçek reklam SDK entegrasyonu
-    await Future.delayed(const Duration(seconds: 2));
+    // Gerçek reklam göster
+    final adShown = await _adService.showRewardedAd(user.tier);
 
-    final result = await _rewardsService.watchAdForChallengeJoker(user, jokerIndex);
+    if (adShown > 0) {
+      // Reklam başarıyla izlendi, jokeri aktifleştir
+      final result = await _rewardsService.watchAdForChallengeJoker(user, jokerIndex);
 
-    setState(() {
-      _isWatchingAd = false;
-      _watchingJokerIndex = null;
-    });
+      setState(() {
+        _isWatchingAd = false;
+        _watchingJokerIndex = null;
+      });
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.message ?? (result.success ? 'Joker kazanıldı!' : 'Hata!')),
-          backgroundColor: result.success ? const Color(0xFF4CAF50) : Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? (result.success ? 'Joker kazanıldı!' : 'Hata!')),
+            backgroundColor: result.success ? const Color(0xFF4CAF50) : Colors.red,
+          ),
+        );
 
-      if (result.success) {
-        await context.read<AuthProvider>().refreshUser();
+        if (result.success) {
+          await context.read<AuthProvider>().refreshUser();
+        }
+      }
+    } else {
+      // Reklam gösterilemedi
+      setState(() {
+        _isWatchingAd = false;
+        _watchingJokerIndex = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Reklam yüklenemedi. Lütfen tekrar deneyin.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
     }
   }
