@@ -9,6 +9,7 @@ import '../../models/match_intent_model.dart';
 import '../../models/challenge_model.dart';
 import '../../services/challenge_online_service.dart';
 import '../../services/haptic_service.dart';
+import '../../services/rewards_service.dart';
 import '../../widgets/challenge_ui_components.dart';
 import 'challenge_online_result_screen.dart';
 
@@ -53,6 +54,7 @@ class ChallengeOnlineScreen extends StatefulWidget {
 class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
     with TickerProviderStateMixin {
   final _gameService = ChallengeOnlineService();
+  final _rewardsService = RewardsService();
 
   StreamSubscription<GameRoomModel?>? _roomSubscription;
   GameRoomModel? _room;
@@ -97,10 +99,12 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
   int _wordTimerMax = 30; // Will be set based on mode
 
   // Joker states (each can only be used once per game)
-  bool _jokerArtistUsed = false;
-  bool _jokerSongUsed = false;
-  bool _jokerX2Used = false;
+  // Now tied to user's challengeJokers from RewardsService
+  bool _jokerArtistUsedThisGame = false;
+  bool _jokerSongUsedThisGame = false;
+  bool _jokerX2UsedThisGame = false;
   bool _x2Active = false; // x2 is active for current round
+  bool _isWatchingAd = false; // Reklam izleniyor mu?
 
   String? get _myUid => context.read<AuthProvider>().user?.uid;
 
@@ -387,24 +391,22 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
         roomId: widget.roomId,
         oderId: _myUid!,
         selectedSongId: _selectedSongId!,
+        useX2Joker: _x2Active,
       );
 
       if (result.isCorrect == true) {
         if (result.wonRound) {
           // We won this round!
-          int points = result.points ?? 1;
+          final points = result.points ?? 1;
 
-          // Apply x2 joker if active
+          // Show bonus messages
           if (_x2Active) {
-            points *= 2;
             _showBonusToastMessage('x2 Joker! +$points puan!', false);
-          }
-          // Check for other special bonuses
-          else if (result.bonusApplied && points > 1) {
-            if (points == 2 && _room?.modeVariant == ModeVariant.real) {
+          } else if (result.bonusApplied && points > 1) {
+            if (_room?.modeVariant == ModeVariant.real) {
               _showBonusToastMessage(
-                  'Rakibin kacirdigi kelimeyi cozdun! +2', true);
-            } else if (points >= 2 && _room?.modeVariant == ModeVariant.relax) {
+                  'Rakibin kacirdigi kelimeyi cozdun! +$points', true);
+            } else if (_room?.modeVariant == ModeVariant.relax) {
               _showBonusToastMessage('Comeback Bonus! x$points', false);
             }
           }
@@ -1815,9 +1817,10 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
             child: _buildJokerButton(
               icon: '🎤',
               label: 'Şarkıcı',
-              isUsed: _jokerArtistUsed,
+              jokerIndex: 0,
+              isUsedThisGame: _jokerArtistUsedThisGame,
               isDisabled: _isSingleArtist,
-              onTap: _useArtistJoker,
+              onTap: () => _handleJokerTap(0, _useArtistJoker),
             ),
           ),
           const SizedBox(width: 8),
@@ -1827,8 +1830,9 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
             child: _buildJokerButton(
               icon: '🎵',
               label: 'Şarkı',
-              isUsed: _jokerSongUsed,
-              onTap: _useSongJoker,
+              jokerIndex: 1,
+              isUsedThisGame: _jokerSongUsedThisGame,
+              onTap: () => _handleJokerTap(1, _useSongJoker),
             ),
           ),
           const SizedBox(width: 8),
@@ -1838,9 +1842,10 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
             child: _buildJokerButton(
               icon: '✨',
               label: 'x2',
-              isUsed: _jokerX2Used,
+              jokerIndex: 2,
+              isUsedThisGame: _jokerX2UsedThisGame,
               isActive: _x2Active,
-              onTap: _useX2Joker,
+              onTap: () => _handleJokerTap(2, _useX2Joker),
             ),
           ),
         ],
@@ -1851,12 +1856,21 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
   Widget _buildJokerButton({
     required String icon,
     required String label,
-    required bool isUsed,
+    required int jokerIndex,
+    required bool isUsedThisGame,
     bool isActive = false,
     bool isDisabled = false,
     required VoidCallback onTap,
   }) {
-    final canUse = !isUsed && !isDisabled && _canAnswer;
+    final user = context.watch<AuthProvider>().user;
+    final isPremium = user?.isActivePremium ?? false;
+    final jokerState = _rewardsService.getChallengeJokerState(user);
+    final hasJoker = isPremium || jokerState[jokerIndex];
+
+    // Bu oyunda kullanıldıysa veya joker yoksa disabled
+    final isUsed = isUsedThisGame;
+    final needsAd = !isPremium && !hasJoker && !isUsedThisGame;
+    final canUse = !isUsed && !isDisabled && _canAnswer && !_isWatchingAd;
 
     return GestureDetector(
       onTap: canUse ? onTap : null,
@@ -1873,12 +1887,19 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
                         _getModeColor().withValues(alpha: 0.8),
                       ],
                     )
-                  : LinearGradient(
-                      colors: [
-                        _getModeColor().withValues(alpha: 0.1),
-                        _getModeColor().withValues(alpha: 0.05),
-                      ],
-                    ),
+                  : needsAd
+                      ? LinearGradient(
+                          colors: [
+                            Colors.amber.shade300,
+                            Colors.amber.shade400,
+                          ],
+                        )
+                      : LinearGradient(
+                          colors: [
+                            _getModeColor().withValues(alpha: 0.1),
+                            _getModeColor().withValues(alpha: 0.05),
+                          ],
+                        ),
           color: (isUsed || isDisabled) ? Colors.grey.shade100 : null,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -1886,7 +1907,9 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
                 ? Colors.grey.shade300
                 : isActive
                     ? _getModeColor()
-                    : _getModeColor().withValues(alpha: 0.3),
+                    : needsAd
+                        ? Colors.amber.shade600
+                        : _getModeColor().withValues(alpha: 0.3),
             width: isActive ? 2 : 1,
           ),
           boxShadow: isActive
@@ -1903,19 +1926,26 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon
-            Text(
-              isUsed ? '✗' : icon,
-              style: TextStyle(
-                fontSize: 14,
-                color: (isUsed || isDisabled) ? Colors.grey.shade400 : null,
+            // Icon - reklam gerekiyorsa play ikonu göster
+            if (needsAd && !isUsed && !isDisabled)
+              Icon(
+                Icons.play_circle_fill,
+                size: 14,
+                color: Colors.amber.shade800,
+              )
+            else
+              Text(
+                isUsed ? '✗' : icon,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: (isUsed || isDisabled) ? Colors.grey.shade400 : null,
+                ),
               ),
-            ),
             const SizedBox(width: 4),
             // Label
             Flexible(
               child: Text(
-                isActive ? 'AKTİF' : label,
+                isActive ? 'AKTİF' : (needsAd && !isUsed ? 'Ad' : label),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 10,
@@ -1924,7 +1954,9 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
                       ? Colors.grey.shade400
                       : isActive
                           ? Colors.white
-                          : ChallengeColors.darkPurple,
+                          : needsAd
+                              ? Colors.amber.shade900
+                              : ChallengeColors.darkPurple,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1935,12 +1967,94 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
     );
   }
 
+  /// Joker'a tıklandığında - joker aktifse kullan, değilse reklam izlet
+  Future<void> _handleJokerTap(int jokerIndex, Future<void> Function() useJoker) async {
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
+
+    final isPremium = user.isActivePremium;
+    final jokerState = _rewardsService.getChallengeJokerState(user);
+    final hasJoker = isPremium || jokerState[jokerIndex];
+
+    if (hasJoker) {
+      // Joker aktif, direkt kullan
+      await useJoker();
+    } else if (!user.isGuest) {
+      // Joker yok, reklam izlet
+      await _showAdForJoker(jokerIndex, useJoker);
+    } else {
+      // Misafir kullanıcı
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Joker kullanmak için giriş yapın'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Reklam izleyerek joker kazan ve kullan
+  Future<void> _showAdForJoker(int jokerIndex, Future<void> Function() useJoker) async {
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
+
+    setState(() => _isWatchingAd = true);
+
+    // TODO: Gerçek reklam SDK entegrasyonu
+    await Future.delayed(const Duration(seconds: 2));
+
+    final result = await _rewardsService.watchAdForChallengeJoker(user, jokerIndex);
+
+    setState(() => _isWatchingAd = false);
+
+    if (result.success) {
+      // Kullanıcı bilgisini güncelle
+      if (mounted) {
+        await context.read<AuthProvider>().refreshUser();
+      }
+
+      // Joker kazanıldı, şimdi kullan
+      await useJoker();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? 'Joker kazanıldı!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message ?? 'Bir hata oluştu'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _useArtistJoker() async {
-    if (_jokerArtistUsed || _songs.isEmpty || _room == null) return;
+    if (_jokerArtistUsedThisGame || _songs.isEmpty || _room == null) return;
+
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
 
     // Mark as used immediately to prevent double tap
-    setState(() => _jokerArtistUsed = true);
+    setState(() => _jokerArtistUsedThisGame = true);
     HapticService.selection();
+
+    // Firestore'da jokeri kullanıldı olarak işaretle (premium değilse)
+    if (!user.isActivePremium) {
+      await _rewardsService.useChallengeJoker(user, 0);
+      if (mounted) {
+        await context.read<AuthProvider>().refreshUser();
+      }
+    }
 
     // Find the correct song IDs for current word
     final correctSongIds = await _gameService.getCorrectSongIdsForWord(
@@ -1986,11 +2100,22 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
   }
 
   Future<void> _useSongJoker() async {
-    if (_jokerSongUsed || _songs.isEmpty || _room == null) return;
+    if (_jokerSongUsedThisGame || _songs.isEmpty || _room == null) return;
+
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
 
     // Mark as used immediately to prevent double tap
-    setState(() => _jokerSongUsed = true);
+    setState(() => _jokerSongUsedThisGame = true);
     HapticService.selection();
+
+    // Firestore'da jokeri kullanıldı olarak işaretle (premium değilse)
+    if (!user.isActivePremium) {
+      await _rewardsService.useChallengeJoker(user, 1);
+      if (mounted) {
+        await context.read<AuthProvider>().refreshUser();
+      }
+    }
 
     // Find the correct song IDs for current word
     final correctSongIds = await _gameService.getCorrectSongIdsForWord(
@@ -2035,17 +2160,29 @@ class _ChallengeOnlineScreenState extends State<ChallengeOnlineScreen>
     }
   }
 
-  void _useX2Joker() {
-    if (_jokerX2Used) return;
+  Future<void> _useX2Joker() async {
+    if (_jokerX2UsedThisGame) return;
+
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
 
     setState(() {
-      _jokerX2Used = true;
+      _jokerX2UsedThisGame = true;
       _x2Active = true;
     });
 
     HapticService.selection();
 
+    // Firestore'da jokeri kullanıldı olarak işaretle (premium değilse)
+    if (!user.isActivePremium) {
+      await _rewardsService.useChallengeJoker(user, 2);
+      if (mounted) {
+        await context.read<AuthProvider>().refreshUser();
+      }
+    }
+
     // Show toast
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(

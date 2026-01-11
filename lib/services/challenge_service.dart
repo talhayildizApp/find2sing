@@ -41,23 +41,43 @@ class ChallengeService {
   }
 
   Stream<List<CategoryModel>> getCategoriesByLanguage(String language) {
+    // Simplified query - filter client-side to avoid composite index requirement
     return _categoriesRef
-        .where('isActive', isEqualTo: true)
-        .where('language', isEqualTo: language)
-        .orderBy('sortOrder')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => CategoryModel.fromFirestore(doc)).toList();
+      final categories = snapshot.docs
+          .map((doc) => CategoryModel.fromFirestore(doc))
+          .where((cat) => cat.isActive && cat.language == language)
+          .toList();
+      // Sort by sortOrder
+      categories.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      return categories;
     });
   }
 
   Stream<List<ChallengeModel>> getChallengesByCategory(String categoryId) {
+    // Client-side filtering to avoid composite index
     return _challengesRef
         .where('categoryId', isEqualTo: categoryId)
-        .where('isActive', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => ChallengeModel.fromFirestore(doc)).toList();
+      return snapshot.docs
+          .map((doc) => ChallengeModel.fromFirestore(doc))
+          .where((c) => c.isActive)
+          .toList();
+    });
+  }
+
+  /// Get challenge count for a category (real-time)
+  Stream<int> getChallengeCountByCategory(String categoryId) {
+    return _challengesRef
+        .where('categoryId', isEqualTo: categoryId)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => ChallengeModel.fromFirestore(doc))
+          .where((c) => c.isActive)
+          .length;
     });
   }
 
@@ -78,13 +98,33 @@ class ChallengeService {
   }
 
   Stream<List<ChallengeModel>> getPopularChallenges({int limit = 10}) {
+    // Client-side filtering to avoid composite index requirement
     return _challengesRef
-        .where('isActive', isEqualTo: true)
-        .orderBy('playCount', descending: true)
-        .limit(limit)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => ChallengeModel.fromFirestore(doc)).toList();
+      final challenges = snapshot.docs
+          .map((doc) => ChallengeModel.fromFirestore(doc))
+          .where((c) => c.isActive)
+          .toList();
+      // Sort by playCount descending
+      challenges.sort((a, b) => b.playCount.compareTo(a.playCount));
+      return challenges.take(limit).toList();
+    });
+  }
+
+  /// Get featured challenges (isFeatured = true)
+  Stream<List<ChallengeModel>> getFeaturedChallenges({int limit = 10}) {
+    // Client-side filtering to avoid composite index requirement
+    return _challengesRef
+        .snapshots()
+        .map((snapshot) {
+      final challenges = snapshot.docs
+          .map((doc) => ChallengeModel.fromFirestore(doc))
+          .where((c) => c.isActive && c.isFeatured)
+          .toList();
+      // Sort by playCount descending for featured challenges
+      challenges.sort((a, b) => b.playCount.compareTo(a.playCount));
+      return challenges.take(limit).toList();
     });
   }
 

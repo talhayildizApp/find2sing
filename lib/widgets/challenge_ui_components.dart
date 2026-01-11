@@ -566,7 +566,7 @@ class WordHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // Timer calculations
     final hasTimer = timerSeconds != null && totalSeconds != null && totalSeconds! > 0;
-    final progress = hasTimer ? timerSeconds! / totalSeconds! : 1.0;
+    final progress = hasTimer ? (timerSeconds! / totalSeconds!).clamp(0.0, 1.0) : 1.0;
     final seconds = timerSeconds ?? 0;
 
     // Kritik seviyeler (pulse animasyonu için)
@@ -1649,7 +1649,7 @@ class ChallengeFreezeOverlay extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
-                        value: 1 - (secondsLeft / totalSeconds),
+                        value: totalSeconds > 0 ? (1 - (secondsLeft / totalSeconds)).clamp(0.0, 1.0) : 0.0,
                         backgroundColor: ChallengeColors.freeze.withValues(alpha:0.2),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           ChallengeColors.freeze,

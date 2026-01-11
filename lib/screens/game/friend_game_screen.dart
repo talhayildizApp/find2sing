@@ -3,9 +3,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
+import 'package:provider/provider.dart';
 
 import 'package:sarkiapp/screens/game/friends_result_screen.dart';
 import 'package:sarkiapp/widgets/local_game_ui_components.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/rewards_service.dart';
 import 'game_config.dart';
 
 class FriendGameScreen extends StatefulWidget {
@@ -218,12 +221,22 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     }
   }
 
-  void _onPass() {
+  Future<void> _onPass() async {
     if (_isFinished) return;
 
     if (_currentPlayer == 1) {
       if (_wordChanges1 <= 0) return;
       HapticFeedback.lightImpact();
+
+      // Firestore'da kelime değiştirme hakkını düşür
+      final user = context.read<AuthProvider>().user;
+      if (user != null && !user.isActivePremium) {
+        await RewardsService().useJoker(user);
+        if (mounted) {
+          await context.read<AuthProvider>().refreshUser();
+        }
+      }
+
       setState(() {
         _wordChanges1--;
         _wordSecondsLeft = widget.countdownSeconds;
@@ -232,6 +245,16 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     } else {
       if (_wordChanges2 <= 0) return;
       HapticFeedback.lightImpact();
+
+      // Firestore'da kelime değiştirme hakkını düşür
+      final user = context.read<AuthProvider>().user;
+      if (user != null && !user.isActivePremium) {
+        await RewardsService().useJoker(user);
+        if (mounted) {
+          await context.read<AuthProvider>().refreshUser();
+        }
+      }
+
       setState(() {
         _wordChanges2--;
         _wordSecondsLeft = widget.countdownSeconds;

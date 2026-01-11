@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/user_model.dart';
+import '../rewards/rewards_screen.dart';
 
 /// HOME SCREEN - Ana Menü
 class HomeScreen extends StatelessWidget {
@@ -32,45 +34,81 @@ class HomeScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // How to Play butonu
-                      GestureDetector(
-                        onTap: () => _showHowToPlay(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha:0.9),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha:0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                      // Sol taraf: Nasıl Oynanır + Joker Hakları
+                      Row(
+                        children: [
+                          // How to Play butonu
+                          GestureDetector(
+                            onTap: () => _showHowToPlay(context),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
                               ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
                                 Icons.help_outline_rounded,
-                                size: 18,
+                                size: 20,
                                 color: Color(0xFF394272),
                               ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Nasıl Oynanır?',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF394272),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          // Joker Hakları butonu
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const RewardsScreen()),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text(
+                                    '🃏',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${user?.effectiveJokerCredits ?? 0}/${UserModel.maxWordChangeCredits}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF394272),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
 
                       // Profil butonu

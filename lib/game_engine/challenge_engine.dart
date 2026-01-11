@@ -141,6 +141,14 @@ class AnswerResult {
 /// Core challenge game engine
 class ChallengeEngine {
   static final Random _random = Random();
+
+  /// Türkçe lowercase dönüşümü - İ->i, I->ı özel durumları
+  static String _turkishLowerCase(String text) {
+    return text
+        .replaceAll('İ', 'i')
+        .replaceAll('I', 'ı')
+        .toLowerCase();
+  }
   
   /// Initialize a new game state
   static ChallengeGameState initializeGame({
@@ -183,7 +191,7 @@ class ChallengeEngine {
   /// Select next word from available songs
   static (String, List<ChallengeSongModel>) _selectNextWord(List<ChallengeSongModel> songs) {
     if (songs.isEmpty) return ('', []);
-    
+
     // Collect all available keywords
     final availableWords = <String>{};
     for (final song in songs) {
@@ -191,19 +199,22 @@ class ChallengeEngine {
       final keywords = song.topKeywords.isNotEmpty ? song.topKeywords : song.keywords;
       availableWords.addAll(keywords);
     }
-    
+
     if (availableWords.isEmpty) return ('', []);
-    
+
     // Select random word
     final wordList = availableWords.toList()..shuffle(_random);
     final selectedWord = wordList.first;
-    
+
+    // Türkçe karakterler için normalize edilmiş karşılaştırma
+    final normalizedSelectedWord = _turkishLowerCase(selectedWord);
+
     // Find songs containing this word
     final validSongs = songs.where((song) {
       final keywords = song.topKeywords.isNotEmpty ? song.topKeywords : song.keywords;
-      return keywords.any((k) => k.toLowerCase() == selectedWord.toLowerCase());
+      return keywords.any((k) => _turkishLowerCase(k) == normalizedSelectedWord);
     }).toList();
-    
+
     return (selectedWord, validSongs);
   }
   

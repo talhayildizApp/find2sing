@@ -4,10 +4,13 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:provider/provider.dart';
 
 import 'game_config.dart';
 import 'single_result_screen.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/haptic_service.dart';
+import '../../services/rewards_service.dart';
 import '../../widgets/game_feedback_widgets.dart';
 
 /// JSON'daki kelime modeli
@@ -213,7 +216,7 @@ class _SingleGameScreenState extends State<SingleGameScreen>
     });
   }
 
-  void _onChangePressed() {
+  Future<void> _onChangePressed() async {
     if (_isFinished || !_isLoaded) return;
     if (_remainingWords.isEmpty) return;
 
@@ -227,7 +230,16 @@ class _SingleGameScreenState extends State<SingleGameScreen>
     if (!freeChange) {
       if (_remainingChangeCount <= 0) return;
       _remainingChangeCount--;
-      
+
+      // Firestore'da kelime değiştirme hakkını düşür
+      final user = context.read<AuthProvider>().user;
+      if (user != null && !user.isActivePremium) {
+        await RewardsService().useJoker(user);
+        if (mounted) {
+          await context.read<AuthProvider>().refreshUser();
+        }
+      }
+
       // Show change used feedback
       setState(() => _showChangeUsed = true);
       Future.delayed(const Duration(seconds: 1), () {

@@ -239,10 +239,31 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.info_outline,
-            color: Color(0xFFF57C00),
-            size: 24,
+          // Fiyat badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFB958),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.lock,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '\$${widget.category.priceUsd.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -259,10 +280,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Kategoriyi satın alarak tüm challenge\'lara erişebilirsin.',
+                  'Premium ile tüm içeriklere eriş',
                   style: TextStyle(
                     fontSize: 13,
-                    color: const Color(0xFFE65100).withValues(alpha:0.8),
+                    color: const Color(0xFFE65100).withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -396,27 +417,46 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           ),
           child: Row(
             children: [
-              // Durum ikonu
+              // Durum ikonu ve fiyat
               Container(
-                width: 44,
-                height: 44,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
                   color: hasAccess
-                      ? const Color(0xFFCAB7FF).withValues(alpha:0.2)
-                      : const Color(0xFFE8E8E8),
+                      ? const Color(0xFFCAB7FF).withValues(alpha: 0.2)
+                      : const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(12),
+                  border: !hasAccess
+                      ? Border.all(color: const Color(0xFFE0E0E0))
+                      : null,
                 ),
-                child: Center(
-                  child: hasAccess
-                      ? Text(
-                          challenge.type == ChallengeType.artist ? '🎤' : '🎵',
-                          style: const TextStyle(fontSize: 20),
-                        )
-                      : const Icon(
-                          Icons.lock,
-                          size: 20,
-                          color: Color(0xFF888888),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (hasAccess)
+                      Text(
+                        challenge.type == ChallengeType.artist ? '🎤' : '🎵',
+                        style: const TextStyle(fontSize: 20),
+                      )
+                    else ...[
+                      const Icon(
+                        Icons.lock,
+                        size: 16,
+                        color: Color(0xFF888888),
+                      ),
+                      if (challenge.priceUsd > 0) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '\$${challenge.priceUsd.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF666666),
+                          ),
                         ),
+                      ],
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 12),

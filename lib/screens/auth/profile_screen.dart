@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/player_id_service.dart';
+import '../../services/admin_auth_service.dart';
 import '../../widgets/profile_ui_components.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,13 +17,23 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _playerIdService = PlayerIdService();
+  final _adminAuthService = AdminAuthService.instance;
   String? _playerId;
   bool _loadingPlayerId = true;
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
     _loadPlayerId();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final isAdmin = await _adminAuthService.isAdmin();
+    if (mounted) {
+      setState(() => _isAdmin = isAdmin);
+    }
   }
 
   Future<void> _loadPlayerId() async {
@@ -331,14 +342,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleLogout(BuildContext context) async {
-    final authProvider = context.read<AuthProvider>();
-    final navigator = Navigator.of(context);
-
     final confirmed = await _showLogoutDialog(context);
-    if (confirmed == true && mounted) {
+    if (confirmed != true || !mounted) return;
+
+    final authProvider = this.context.read<AuthProvider>();
+    final navigator = Navigator.of(this.context);
+    final scaffoldMessenger = ScaffoldMessenger.of(this.context);
+
+    try {
       await authProvider.signOut();
+
+      // signOut tamamlandıktan sonra navigasyon yap
       if (mounted) {
+        // Tüm stack'i temizle ve home'a git
         navigator.pushNamedAndRemoveUntil('/home', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Text('Çıkış yapılırken bir hata oluştu'),
+              ],
+            ),
+            backgroundColor: ProfileColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
       }
     }
   }
@@ -466,6 +501,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _showPlaceholderDialog(context, 'Kullanım Koşulları');
                 },
               ),
+              if (_isAdmin) ...[
+                const Divider(height: 24),
+                _buildSettingsItem(
+                  icon: Icons.admin_panel_settings_rounded,
+                  label: 'Admin Panel',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/dev-admin');
+                  },
+                ),
+              ],
               const SizedBox(height: 20),
             ],
           ),

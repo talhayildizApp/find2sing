@@ -251,6 +251,7 @@ class ChallengeCard extends StatelessWidget {
   final String emoji;
   final ChallengeCardType type;
   final bool isLocked;
+  final double? priceUsd; // Fiyat gösterimi için
   final int? songCount;
   final String? difficulty;
   final VoidCallback? onTap;
@@ -263,6 +264,7 @@ class ChallengeCard extends StatelessWidget {
     this.emoji = '🎵',
     this.type = ChallengeCardType.standard,
     this.isLocked = false,
+    this.priceUsd,
     this.songCount,
     this.difficulty,
     this.onTap,
@@ -332,7 +334,23 @@ class ChallengeCard extends StatelessWidget {
             ),
             child: Center(
               child: isLocked
-                  ? const Icon(Icons.lock_rounded, size: 24, color: Color(0xFF999999))
+                  ? (priceUsd != null
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.lock_rounded, size: 16, color: Color(0xFF999999)),
+                            const SizedBox(height: 2),
+                            Text(
+                              '\$${priceUsd!.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF666666),
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Icon(Icons.lock_rounded, size: 24, color: Color(0xFF999999)))
                   : Text(emoji, style: const TextStyle(fontSize: 26)),
             ),
           ),

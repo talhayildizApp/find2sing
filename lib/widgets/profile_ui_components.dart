@@ -725,12 +725,18 @@ class QuickStatItem {
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
+  final bool isHighlighted;
+  final String? badge;
 
   const QuickStatItem({
     required this.label,
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
+    this.isHighlighted = false,
+    this.badge,
   });
 }
 
@@ -741,57 +747,125 @@ class _QuickStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: stat.color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  stat.icon,
-                  size: 18,
-                  color: stat.color,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                stat.value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: ProfileColors.darkPurple,
-                ),
-              ),
-            ],
-          ),
-          Text(
-            stat.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: ProfileColors.darkPurple.withValues(alpha: 0.6),
+    final isHighlighted = stat.isHighlighted;
+    final hasTap = stat.onTap != null;
+
+    return GestureDetector(
+      onTap: hasTap
+          ? () {
+              HapticFeedback.lightImpact();
+              stat.onTap?.call();
+            }
+          : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isHighlighted
+              ? stat.color.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(16),
+          border: isHighlighted
+              ? Border.all(color: stat.color.withValues(alpha: 0.4), width: 2)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: isHighlighted
+                  ? stat.color.withValues(alpha: 0.2)
+                  : Colors.black.withValues(alpha: 0.06),
+              blurRadius: isHighlighted ? 16 : 12,
+              offset: const Offset(0, 4),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: stat.color.withValues(alpha: isHighlighted ? 0.25 : 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        stat.icon,
+                        size: 18,
+                        color: stat.color,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      stat.value,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: isHighlighted ? stat.color : ProfileColors.darkPurple,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        stat.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isHighlighted
+                              ? stat.color.withValues(alpha: 0.8)
+                              : ProfileColors.darkPurple.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                    if (hasTap)
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 12,
+                        color: stat.color.withValues(alpha: 0.6),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            // Badge (e.g., "Joker" label)
+            if (stat.badge != null)
+              Positioned(
+                top: -8,
+                right: -8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [stat.color, stat.color.withValues(alpha: 0.8)],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: stat.color.withValues(alpha: 0.4),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    stat.badge!,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -614,13 +614,10 @@ class _ShakeWidgetState extends State<_ShakeWidget>
       duration: const Duration(milliseconds: 500),
     );
 
-    _animation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0, end: 8), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: 8, end: -8), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8, end: 5), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 5, end: -5), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -5, end: 0), weight: 1),
-    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    // Simple shake animation using sin curve
+    _animation = Tween<double>(begin: -8, end: 8).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticIn),
+    );
 
     _controller.forward();
   }

@@ -35,6 +35,7 @@ class AdminContentService {
     required String type,
     required String language,
     required double priceUsd,
+    double discountPercent = 40.0,
     required bool isActive,
     required int sortOrder,
   }) async {
@@ -46,6 +47,7 @@ class AdminContentService {
       'type': type,
       'language': language,
       'priceUsd': priceUsd,
+      'discountPercent': discountPercent,
       'isActive': isActive,
       'sortOrder': sortOrder,
       'updatedAt': FieldValue.serverTimestamp(),

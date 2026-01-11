@@ -172,19 +172,25 @@ class AccessControlService {
       return UserFeatures.guest();
     }
 
-    if (user.isActivePremium) {
-      return UserFeatures.premium();
-    }
+    // UserTierConfig'den direkt al
+    return UserFeatures.fromTierConfig(user.tierConfig);
+  }
 
-    if (user.effectiveTier == UserTier.purchased) {
-      return UserFeatures.purchased();
-    }
+  /// Kullanıcının tier'ine göre joker kredisi
+  static int getJokerCredits(UserModel? user) {
+    if (user == null) return 0;
+    return user.effectiveJokerCredits;
+  }
 
-    return UserFeatures.free();
+  /// Kullanıcı reklam izleyebilir mi?
+  static bool canWatchRewardedAd(UserModel? user) {
+    if (user == null || user.isGuest) return false;
+    if (user.isActivePremium) return false;
+    return user.wordChangeCredits < UserModel.maxWordChangeCredits;
   }
 }
 
-/// Kullanıcı özellikleri özeti
+/// Kullanıcı özellikleri özeti - UserTierConfig'den türetilir
 class UserFeatures {
   final bool canViewChallenges;
   final bool hasAds;
@@ -193,6 +199,8 @@ class UserFeatures {
   final bool canSaveProgress;
   final bool canJoinLeaderboard;
   final String tierName;
+  final String tierEmoji;
+  final UserTier tier;
 
   UserFeatures({
     required this.canViewChallenges,
@@ -202,53 +210,38 @@ class UserFeatures {
     required this.canSaveProgress,
     required this.canJoinLeaderboard,
     required this.tierName,
+    required this.tierEmoji,
+    required this.tier,
   });
 
-  factory UserFeatures.guest() {
+  /// UserTierConfig'den UserFeatures oluştur
+  factory UserFeatures.fromTierConfig(UserTierConfig config) {
     return UserFeatures(
-      canViewChallenges: false,
-      hasAds: true,
-      adRewardCredits: 1,
-      hasUnlimitedCredits: false,
-      canSaveProgress: false,
-      canJoinLeaderboard: false,
-      tierName: 'Misafir',
+      canViewChallenges: config.canViewChallenges,
+      hasAds: config.showEndGameAd,
+      adRewardCredits: config.adRewardCredits,
+      hasUnlimitedCredits: config.hasFullAccess,
+      canSaveProgress: config.tier != UserTier.guest,
+      canJoinLeaderboard: config.tier != UserTier.guest,
+      tierName: config.label,
+      tierEmoji: config.emoji,
+      tier: config.tier,
     );
+  }
+
+  factory UserFeatures.guest() {
+    return UserFeatures.fromTierConfig(UserTierConfig.getConfig(UserTier.guest));
   }
 
   factory UserFeatures.free() {
-    return UserFeatures(
-      canViewChallenges: true,
-      hasAds: true,
-      adRewardCredits: 2,
-      hasUnlimitedCredits: false,
-      canSaveProgress: true,
-      canJoinLeaderboard: true,
-      tierName: 'Ücretsiz Üye',
-    );
+    return UserFeatures.fromTierConfig(UserTierConfig.getConfig(UserTier.free));
   }
 
   factory UserFeatures.purchased() {
-    return UserFeatures(
-      canViewChallenges: true,
-      hasAds: false,
-      adRewardCredits: 3,
-      hasUnlimitedCredits: false,
-      canSaveProgress: true,
-      canJoinLeaderboard: true,
-      tierName: 'Üye',
-    );
+    return UserFeatures.fromTierConfig(UserTierConfig.getConfig(UserTier.purchased));
   }
 
   factory UserFeatures.premium() {
-    return UserFeatures(
-      canViewChallenges: true,
-      hasAds: false,
-      adRewardCredits: 0,
-      hasUnlimitedCredits: true,
-      canSaveProgress: true,
-      canJoinLeaderboard: true,
-      tierName: 'Premium',
-    );
+    return UserFeatures.fromTierConfig(UserTierConfig.getConfig(UserTier.premium));
   }
 }

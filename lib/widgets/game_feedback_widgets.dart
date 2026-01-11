@@ -324,10 +324,9 @@ class _ScorePopState extends State<ScorePop>
       duration: const Duration(milliseconds: 800),
     );
 
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.5, end: 1.2), weight: 30),
-      TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 70),
-    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+    );
 
     _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
@@ -424,10 +423,9 @@ class _SongAddedEffectState extends State<SongAddedEffect>
       duration: const Duration(milliseconds: 600),
     );
 
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.3), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.3, end: 1.0), weight: 60),
-    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+    );
 
     _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(

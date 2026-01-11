@@ -51,6 +51,7 @@ class ChallengeModel {
   final bool isFree;
   
   final bool isActive;
+  final bool isFeatured;
   final DateTime createdAt;
   final DateTime? updatedAt;
   final int playCount;
@@ -70,6 +71,7 @@ class ChallengeModel {
     this.priceUsd = 0.99,
     this.isFree = false,
     this.isActive = true,
+    this.isFeatured = false,
     required this.createdAt,
     this.updatedAt,
     this.playCount = 0,
@@ -99,6 +101,7 @@ class ChallengeModel {
       priceUsd: (data['priceUsd'] ?? 0.99).toDouble(),
       isFree: data['isFree'] ?? false,
       isActive: data['isActive'] ?? true,
+      isFeatured: data['isFeatured'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
       playCount: data['playCount'] ?? 0,
@@ -120,6 +123,7 @@ class ChallengeModel {
       'priceUsd': priceUsd,
       'isFree': isFree,
       'isActive': isActive,
+      'isFeatured': isFeatured,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'playCount': playCount,
@@ -184,7 +188,7 @@ class CategoryModel {
     required this.challengeCount,
     required this.challengeIds,
     required this.priceUsd,
-    this.discountPercent = 40.0,
+    this.discountPercent = defaultDiscountPercent,
     this.isActive = true,
     this.sortOrder = 0,
     required this.createdAt,
@@ -192,7 +196,8 @@ class CategoryModel {
 
   factory CategoryModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+    final ids = List<String>.from(data['challengeIds'] ?? []);
+
     return CategoryModel(
       id: doc.id,
       title: data['title'] ?? '',
@@ -201,8 +206,9 @@ class CategoryModel {
       imageUrl: data['imageUrl'],
       language: data['language'] ?? 'tr',
       iconEmoji: data['iconEmoji'],
-      challengeCount: data['challengeCount'] ?? 0,
-      challengeIds: List<String>.from(data['challengeIds'] ?? []),
+      // challengeCount'u challengeIds.length'ten hesapla (Firestore değeri yanlışsa bile doğru göster)
+      challengeCount: ids.isNotEmpty ? ids.length : (data['challengeCount'] ?? 0),
+      challengeIds: ids,
       priceUsd: (data['priceUsd'] ?? 0).toDouble(),
       discountPercent: (data['discountPercent'] ?? 40.0).toDouble(),
       isActive: data['isActive'] ?? true,
@@ -229,8 +235,39 @@ class CategoryModel {
     };
   }
 
-  double get originalPrice => challengeCount * 0.99;
-  double get savings => originalPrice - priceUsd;
+  /// Tekil challenge fiyatı (varsayılan $0.99)
+  static const double defaultChallengePrice = 0.99;
+
+  /// Varsayılan indirim yüzdesi (%40 = 0.6 çarpanı)
+  /// Bu değeri değiştirerek tüm kategorilerin varsayılan indirimini güncelleyebilirsin
+  static const double defaultDiscountPercent = 40.0;
+
+  /// Kategori paketi için orijinal fiyat (challenge sayısı × tekil fiyat)
+  double get originalPrice => challengeCount * defaultChallengePrice;
+
+  /// Kategori paketi için hesaplanmış indirimli fiyat
+  /// Formula: challenge_sayısı × $0.99 × (1 - indirim_yüzdesi/100)
+  double get calculatedPackagePrice {
+    final discount = discountPercent / 100.0;
+    return originalPrice * (1 - discount);
+  }
+
+  /// Gösterilecek paket fiyatı
+  /// Eğer admin manuel fiyat girdiyse onu kullan, yoksa hesaplanmış fiyatı kullan
+  double get packagePrice {
+    // Eğer priceUsd 0 ise hesaplanmış fiyatı kullan
+    if (priceUsd <= 0) return calculatedPackagePrice;
+    return priceUsd;
+  }
+
+  /// Tasarruf miktarı
+  double get savings => originalPrice - packagePrice;
+
+  /// İndirim yüzdesi (gerçek)
+  double get actualDiscountPercent {
+    if (originalPrice <= 0) return 0;
+    return ((originalPrice - packagePrice) / originalPrice) * 100;
+  }
 }
 
 /// Kullanıcının Challenge İlerlemesi

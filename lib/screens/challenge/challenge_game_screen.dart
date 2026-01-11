@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/challenge_model.dart';
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/challenge_service.dart';
 import '../../services/haptic_service.dart';
+import '../../services/rewards_service.dart';
 import '../../widgets/challenge_ui_components.dart';
 import 'challenge_result_screen.dart';
 
@@ -34,7 +38,11 @@ class ChallengeGameScreen extends StatefulWidget {
 class _ChallengeGameScreenState extends State<ChallengeGameScreen>
     with TickerProviderStateMixin {
   final ChallengeService _challengeService = ChallengeService();
+  final RewardsService _rewardsService = RewardsService();
   final Random _random = Random();
+
+  // Challenge joker state (local copy for UI)
+  List<bool> _challengeJokers = [false, false, false];
 
   // Game state
   List<ChallengeSongModel> _allSongs = [];
@@ -181,7 +189,7 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen>
       if (!mounted || _isFinished) return;
 
       setState(() {
-        // Handle freeze
+        // Handle freeze countdown (but don't block main timer)
         if (_isFrozen) {
           if (_freezeSeconds > 0) {
             _freezeSeconds--;
@@ -189,10 +197,10 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen>
             _isFrozen = false;
             HapticService.freezeEnd();
           }
-          return;
         }
 
         // Time Race mode: 5 dakikadan geriye doğru say (countdown)
+        // Timer frozen olsa bile devam etmeli
         if (widget.singleMode == ChallengeSingleMode.timeRace) {
           if (_totalSeconds > 0) {
             _totalSeconds--; // Geriye say (countdown)
@@ -208,19 +216,23 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen>
         }
 
         // Round timer for Relax and Real modes
+        // Frozen durumda round timer'ı durdur ama genel süreyi say
         if (widget.singleMode != ChallengeSingleMode.timeRace) {
-          // Genel süreyi artır (elapsed time)
+          // Genel süreyi artır (elapsed time) - frozen olsa bile
           _totalSeconds++;
 
-          if (_roundSeconds > 0) {
-            _roundSeconds--;
+          // Round timer sadece frozen değilse azalsın
+          if (!_isFrozen) {
+            if (_roundSeconds > 0) {
+              _roundSeconds--;
 
-            if (_roundSeconds <= 5) {
-              HapticService.timeCritical();
+              if (_roundSeconds <= 5) {
+                HapticService.timeCritical();
+              }
+            } else {
+              // Time expired for this word - move to next
+              _selectNextWord();
             }
-          } else {
-            // Time expired for this word - move to next
-            _selectNextWord();
           }
         }
       });
@@ -229,6 +241,9 @@ class _ChallengeGameScreenState extends State<ChallengeGameScreen>
 
   void _onSubmit() {
     if (_selectedArtist == null || _selectedSong == null || _isFrozen || _isSubmitting) return;
+
+    // Prevent duplicate submissions - check if song already solved
+    if (_solvedSongIds.contains(_selectedSong!.id)) return;
 
     setState(() => _isSubmitting = true);
 

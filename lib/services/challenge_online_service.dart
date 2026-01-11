@@ -82,6 +82,7 @@ class ChallengeOnlineService {
     required String roomId,
     required String oderId,
     required String selectedSongId,
+    bool useX2Joker = false,
   }) async {
     final roomDoc = await _roomsRef.doc(roomId).get();
     if (!roomDoc.exists) {
@@ -173,6 +174,13 @@ class ChallengeOnlineService {
               freshRoom.comeback!.isActive) {
             points *= freshRoom.comeback!.multiplier;
             bonusApplied = true;
+          }
+
+          // Apply x2 joker if used
+          if (useX2Joker) {
+            points *= 2;
+            bonusApplied = true;
+            debugPrint('🎯 X2 JOKER applied! Points: $points');
           }
 
           // Mark round winner

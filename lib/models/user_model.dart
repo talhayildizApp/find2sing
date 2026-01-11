@@ -7,6 +7,74 @@ enum UserTier {
   premium,
 }
 
+/// Kullanıcı seviyelerine göre haklar ve konfigürasyon
+class UserTierConfig {
+  final UserTier tier;
+  final String label;
+  final String emoji;
+  final bool showEndGameAd;
+  final int adRewardCredits;
+  final int baseJokerCredits;
+  final bool canViewChallenges;
+  final bool hasFullAccess;
+
+  const UserTierConfig({
+    required this.tier,
+    required this.label,
+    required this.emoji,
+    required this.showEndGameAd,
+    required this.adRewardCredits,
+    required this.baseJokerCredits,
+    required this.canViewChallenges,
+    required this.hasFullAccess,
+  });
+
+  static const configs = {
+    UserTier.guest: UserTierConfig(
+      tier: UserTier.guest,
+      label: 'Misafir',
+      emoji: '👤',
+      showEndGameAd: true,
+      adRewardCredits: 1,
+      baseJokerCredits: 1,
+      canViewChallenges: false,
+      hasFullAccess: false,
+    ),
+    UserTier.free: UserTierConfig(
+      tier: UserTier.free,
+      label: 'Üye',
+      emoji: '🎵',
+      showEndGameAd: true,
+      adRewardCredits: 2,
+      baseJokerCredits: 2,
+      canViewChallenges: true,
+      hasFullAccess: false,
+    ),
+    UserTier.purchased: UserTierConfig(
+      tier: UserTier.purchased,
+      label: 'Satın Alan',
+      emoji: '🎯',
+      showEndGameAd: false,
+      adRewardCredits: 3,
+      baseJokerCredits: 3,
+      canViewChallenges: true,
+      hasFullAccess: false,
+    ),
+    UserTier.premium: UserTierConfig(
+      tier: UserTier.premium,
+      label: 'Premium',
+      emoji: '👑',
+      showEndGameAd: false,
+      adRewardCredits: 0, // Reklam izlemeye gerek yok
+      baseJokerCredits: 5, // Sabit 5 joker
+      canViewChallenges: true,
+      hasFullAccess: true,
+    ),
+  };
+
+  static UserTierConfig getConfig(UserTier tier) => configs[tier]!;
+}
+
 class UserModel {
   final String uid;
   final String email;
@@ -22,6 +90,11 @@ class UserModel {
   final int totalTimePlayed;
   final int wordChangeCredits;
   static const int maxWordChangeCredits = 5;
+
+  // Challenge Jokerleri - 3 adet, her biri ayrı reklam izleyerek kazanılır
+  final List<bool> challengeJokers; // [joker1, joker2, joker3] - true = aktif, false = kullanıldı
+  static const int maxChallengeJokers = 3;
+
   final bool isPremium;
   final DateTime? premiumExpiresAt;
   final String? premiumSubscriptionId;
@@ -45,6 +118,7 @@ class UserModel {
     this.totalGamesPlayed = 0,
     this.totalTimePlayed = 0,
     this.wordChangeCredits = 3,
+    this.challengeJokers = const [false, false, false], // Başlangıçta 3 joker yok
     this.isPremium = false,
     this.premiumExpiresAt,
     this.premiumSubscriptionId,
@@ -74,6 +148,7 @@ class UserModel {
       totalGamesPlayed: data['totalGamesPlayed'] ?? 0,
       totalTimePlayed: data['totalTimePlayed'] ?? 0,
       wordChangeCredits: data['wordChangeCredits'] ?? 3,
+      challengeJokers: List<bool>.from(data['challengeJokers'] ?? [false, false, false]),
       isPremium: data['isPremium'] ?? false,
       premiumExpiresAt: (data['premiumExpiresAt'] as Timestamp?)?.toDate(),
       premiumSubscriptionId: data['premiumSubscriptionId'],
@@ -99,6 +174,7 @@ class UserModel {
       'totalGamesPlayed': totalGamesPlayed,
       'totalTimePlayed': totalTimePlayed,
       'wordChangeCredits': wordChangeCredits,
+      'challengeJokers': challengeJokers,
       'isPremium': isPremium,
       'premiumExpiresAt': premiumExpiresAt != null ? Timestamp.fromDate(premiumExpiresAt!) : null,
       'premiumSubscriptionId': premiumSubscriptionId,
@@ -126,6 +202,7 @@ class UserModel {
       lastLoginAt: DateTime.now(),
       tier: UserTier.free,
       wordChangeCredits: 3,
+      challengeJokers: const [false, false, false],
     );
   }
 
@@ -140,6 +217,7 @@ class UserModel {
       lastLoginAt: DateTime.now(),
       tier: UserTier.guest,
       wordChangeCredits: 3,
+      challengeJokers: const [false, false, false],
     );
   }
 
@@ -154,6 +232,7 @@ class UserModel {
     int? totalGamesPlayed,
     int? totalTimePlayed,
     int? wordChangeCredits,
+    List<bool>? challengeJokers,
     bool? isPremium,
     DateTime? premiumExpiresAt,
     String? premiumSubscriptionId,
@@ -177,6 +256,7 @@ class UserModel {
       totalGamesPlayed: totalGamesPlayed ?? this.totalGamesPlayed,
       totalTimePlayed: totalTimePlayed ?? this.totalTimePlayed,
       wordChangeCredits: wordChangeCredits ?? this.wordChangeCredits,
+      challengeJokers: challengeJokers ?? this.challengeJokers,
       isPremium: isPremium ?? this.isPremium,
       premiumExpiresAt: premiumExpiresAt ?? this.premiumExpiresAt,
       premiumSubscriptionId: premiumSubscriptionId ?? this.premiumSubscriptionId,
@@ -258,4 +338,58 @@ class UserModel {
   int get highScore => totalSongsFound;
   int get gamesPlayed => totalGamesPlayed;
   int get correctGuesses => totalSongsFound;
+
+  /// Kullanıcının tier konfigürasyonu
+  UserTierConfig get tierConfig => UserTierConfig.getConfig(effectiveTier);
+
+  /// Tier'e göre base joker kredisi
+  int get baseJokerCredits => tierConfig.baseJokerCredits;
+
+  /// Premium için sabit 5, diğerleri için mevcut kredi (Tek başına/Arkadaşla modu için)
+  int get effectiveJokerCredits {
+    if (isActivePremium) return UserTierConfig.configs[UserTier.premium]!.baseJokerCredits;
+    return wordChangeCredits.clamp(0, maxWordChangeCredits);
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // CHALLENGE JOKER METODLARI
+  // ─────────────────────────────────────────────────────────────────
+
+  /// Aktif challenge joker sayısı
+  int get activeChallengeJokerCount {
+    if (isActivePremium) return maxChallengeJokers; // Premium sınırsız
+    return challengeJokers.where((j) => j).length;
+  }
+
+  /// Belirli bir joker aktif mi?
+  bool isChallengeJokerActive(int index) {
+    if (isActivePremium) return true;
+    if (index < 0 || index >= challengeJokers.length) return false;
+    return challengeJokers[index];
+  }
+
+  /// Reklam izleyerek kazanılabilecek joker var mı?
+  bool get canEarnChallengeJoker {
+    if (isActivePremium) return false;
+    if (isGuest) return false;
+    return challengeJokers.contains(false); // En az bir false (kazanılabilir) var mı
+  }
+
+  /// İlk kullanılabilir joker indexi (-1 = yok)
+  int get firstAvailableChallengeJokerIndex {
+    if (isActivePremium) return 0;
+    for (int i = 0; i < challengeJokers.length; i++) {
+      if (challengeJokers[i]) return i;
+    }
+    return -1;
+  }
+
+  /// İlk kazanılabilir (reklam izlenecek) joker indexi (-1 = hepsi dolu)
+  int get firstEarnableChallengeJokerIndex {
+    if (isActivePremium) return -1;
+    for (int i = 0; i < challengeJokers.length; i++) {
+      if (!challengeJokers[i]) return i;
+    }
+    return -1;
+  }
 }

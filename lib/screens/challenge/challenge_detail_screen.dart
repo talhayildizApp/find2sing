@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/challenge_model.dart';
 import '../../models/user_model.dart';
 import '../../services/access_control_service.dart';
+import '../../services/challenge_service.dart';
 import 'challenge_mode_select_screen.dart';
 import 'challenge_online_mode_select_screen.dart';
 import 'leaderboard_screen.dart';
@@ -26,6 +27,11 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  final ChallengeService _challengeService = ChallengeService();
+  List<ChallengeSongModel> _songs = [];
+  bool _isLoadingSongs = true;
+  CategoryModel? _category;
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +43,38 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.03).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _loadSongs();
+    _loadCategory();
+  }
+
+  Future<void> _loadCategory() async {
+    if (widget.challenge.categoryId.isEmpty) return;
+    try {
+      final category = await _challengeService.getCategory(widget.challenge.categoryId);
+      if (mounted && category != null) {
+        setState(() => _category = category);
+      }
+    } catch (e) {
+      debugPrint('Error loading category: $e');
+    }
+  }
+
+  Future<void> _loadSongs() async {
+    try {
+      final songs = await _challengeService.getChallengeSongs(widget.challenge.id);
+      if (mounted) {
+        setState(() {
+          _songs = songs;
+          _isLoadingSongs = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading songs: $e');
+      if (mounted) {
+        setState(() => _isLoadingSongs = false);
+      }
+    }
   }
 
   @override
@@ -400,7 +438,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Gör',
+                    'Sıralama',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -411,7 +449,7 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Sıralamayı Gör',
+                        'Tabloyu Gör',
                         style: TextStyle(
                           fontSize: 11,
                           color: const Color(0xFF6C6FA4).withValues(alpha:0.8),
@@ -522,10 +560,10 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Şarkı Listesi',
-                  style: TextStyle(
+                  'Şarkı Listesi (${_songs.length})',
+                  style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF394272),
@@ -537,35 +575,144 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
 
           const SizedBox(height: 14),
 
-          // Progress indicator with motivation
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF9E6),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: const Color(0xFFFFE082).withValues(alpha:0.5),
+          // Song list
+          if (_isLoadingSongs)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFCAB7FF),
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                const Text('🔑', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    access.hasAccess
-                        ? 'İlk doğruyla challenge\'ı tamamla!'
-                        : 'Challenge\'ı aç ve şarkıları keşfet!',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF8C6D1F),
+            )
+          else if (_songs.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F5FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFCAB7FF).withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.access_time_rounded,
+                    size: 18,
+                    color: const Color(0xFF6C6FA4).withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Şarkılar yakında eklenecek',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF6C6FA4).withValues(alpha: 0.8),
                     ),
                   ),
+                ],
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 260),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: _songs.length > 3
+                    ? const BouncingScrollPhysics()
+                    : const NeverScrollableScrollPhysics(),
+                itemCount: _songs.length,
+                itemBuilder: (context, index) {
+                  return _buildSongItem(_songs[index], index);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSongItem(ChallengeSongModel song, int index) {
+    return Container(
+      margin: EdgeInsets.only(bottom: index < _songs.length - 1 ? 8 : 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F5FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFCAB7FF).withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Index badge
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: const Color(0xFFCAB7FF).withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF6C6FA4),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Song info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  song.title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF394272),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  song.artist,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF6C6FA4).withValues(alpha: 0.8),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          // Year badge
+          if (song.year > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCAB7FF).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '${song.year}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6C6FA4),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -739,7 +886,15 @@ class _ChallengeDetailScreenState extends State<ChallengeDetailScreen>
   }
 
   Widget _buildPurchaseButton(BuildContext context, UserModel? user) {
-    final price = widget.challenge.isFree ? 0 : widget.challenge.priceUsd;
+    // Challenge fiyatı > 0 ise onu kullan, değilse kategori fiyatını kullan
+    double price = 0;
+    if (!widget.challenge.isFree) {
+      if (widget.challenge.priceUsd > 0) {
+        price = widget.challenge.priceUsd;
+      } else if (_category != null && _category!.packagePrice > 0) {
+        price = _category!.packagePrice;
+      }
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,

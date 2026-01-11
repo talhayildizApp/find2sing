@@ -26,6 +26,9 @@ dependencies:
   
   # Firebase Analytics
   firebase_analytics: ^11.3.6
+
+  # Firebase Cloud Functions
+  cloud_functions: ^5.1.6
   
   # Google Sign-In
   google_sign_in: ^6.2.2

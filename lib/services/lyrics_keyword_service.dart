@@ -214,25 +214,54 @@ class LyricsKeywordService {
     'allí',
   };
 
+  // Türkçe ve diğer dillerde geçerli harf karakterleri
+  static const String _turkishLetters = 'abcçdefgğhıijklmnoöprsştuüvyzABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ';
+  static const String _germanLetters = 'äöüßÄÖÜ';
+  static const String _spanishLetters = 'áéíóúüñÁÉÍÓÚÜÑ';
+  static const String _allValidLetters = _turkishLetters + _germanLetters + _spanishLetters + '0123456789';
+
   /// Tokenize keeping letters & numbers across languages.
-  /// Uses Unicode-aware character classes (unicode: true), so Turkish/German/Spanish
-  /// letters are preserved without relying on \p{...} (which Dart RegExp may not support).
+  /// Improved algorithm for Turkish/German/Spanish character support.
   List<String> tokenize(String raw) {
     final text = raw.trim();
     if (text.isEmpty) return const [];
 
-    // Keep Unicode "word" chars via \w under unicode: true.
-    // Note: \w includes underscore. We treat underscores as separators.
-    final cleaned = text
-        .replaceAll(RegExp(r'[_]+', unicode: true), ' ')
-        .replaceAll(RegExp(r'[^\w]+', unicode: true), ' ')
+    // Önce bazı temizlikler yapalım
+    var cleaned = text
+        // Parantez içindeki tekrarları kaldır: (Nakarat), (x2), (2x) vb.
+        .replaceAll(RegExp(r'\([^)]*\)', caseSensitive: false), ' ')
+        // Köşeli parantez içindekileri kaldır: [Nakarat], [Verse 1]
+        .replaceAll(RegExp(r'\[[^\]]*\]', caseSensitive: false), ' ')
+        // Satır başı işaretlerini kaldır (1., 2., I., II. vb.)
+        .replaceAll(RegExp(r'^\d+\.\s*', multiLine: true), ' ')
+        .replaceAll(RegExp(r'^[IVX]+\.\s*', multiLine: true), ' ')
+        // Tire ile ayrılmış kelimeleri ayır: "gel-di" -> "gel di"
+        .replaceAll(RegExp(r'(?<=[a-zA-ZçğıöşüÇĞİÖŞÜ])-(?=[a-zA-ZçğıöşüÇĞİÖŞÜ])'), ' ')
+        // Apostrophe ile birleşik kelimeleri ayır: "gel'dim" -> "gel dim"
+        .replaceAll(RegExp(r"'"), ' ')
+        // Birden fazla boşluğu teke indir
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
     if (cleaned.isEmpty) return const [];
 
+    // Sadece geçerli harfleri ve sayıları tut, diğer her şeyi boşluk yap
+    final buffer = StringBuffer();
+    for (int i = 0; i < cleaned.length; i++) {
+      final char = cleaned[i];
+      if (_allValidLetters.contains(char) || char == ' ') {
+        buffer.write(char);
+      } else {
+        buffer.write(' ');
+      }
+    }
+
+    final finalCleaned = buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (finalCleaned.isEmpty) return const [];
+
     // Split on whitespace
-    return cleaned
-        .split(RegExp(r'\s+', unicode: true))
+    return finalCleaned
+        .split(' ')
         .where((t) => t.isNotEmpty)
         .toList();
   }
@@ -252,11 +281,27 @@ class LyricsKeywordService {
     }
   }
 
+  /// Türkçe lowercase dönüşümü - İ->i, I->ı özel durumları
+  String _turkishLowerCase(String text) {
+    return text
+        .replaceAll('İ', 'i')
+        .replaceAll('I', 'ı')
+        .toLowerCase();
+  }
+
+  /// Sadece harf içeren kelime mi? (sayı içermemeli)
+  bool _isValidWord(String token) {
+    // Sadece sayılardan oluşuyorsa geçersiz
+    if (RegExp(r'^[0-9]+$').hasMatch(token)) return false;
+    // En az bir harf içermeli
+    return RegExp(r'[a-zA-ZçğıöşüÇĞİÖŞÜäöüßÄÖÜáéíóúüñÁÉÍÓÚÜÑ]').hasMatch(token);
+  }
+
   /// Extracts keywords from lyrics.
   ///
   /// - Preserves diacritics (no folding).
-  /// - Lowercases tokens for consistency (note: Turkish dotted-i edge cases can produce combining marks;
-  ///   we preserve the result as-is to keep fidelity).
+  /// - Turkish-aware lowercase (İ->i, I->ı).
+  /// - Filters out meaningless short tokens and numbers.
   ({
     List<String> keywords,
     List<String> topKeywords,
@@ -265,8 +310,8 @@ class LyricsKeywordService {
     required String lyricsRaw,
     required String languageCode, // tr/en/de/es
     bool removeStopwords = true,
-    int minTokenLength = 2,
-    int maxTopKeywords = 160,
+    int minTokenLength = 3, // Minimum 3 karakter - "zd" gibi şeyleri önler
+    int maxTopKeywords = 100, // Daha az ama daha kaliteli
   }) {
     final tokens = tokenize(lyricsRaw);
     if (tokens.isEmpty) {
@@ -277,9 +322,18 @@ class LyricsKeywordService {
 
     final freq = <String, int>{};
     for (final t in tokens) {
-      final token = t.toLowerCase();
+      // Türkçe için özel lowercase
+      final token = languageCode == 'tr' ? _turkishLowerCase(t) : t.toLowerCase();
+
+      // Minimum uzunluk kontrolü
       if (token.length < minTokenLength) continue;
+
+      // Geçerli kelime kontrolü (sadece sayı değil, en az bir harf içermeli)
+      if (!_isValidWord(token)) continue;
+
+      // Stopword kontrolü
       if (removeStopwords && stop.contains(token)) continue;
+
       freq[token] = (freq[token] ?? 0) + 1;
     }
 

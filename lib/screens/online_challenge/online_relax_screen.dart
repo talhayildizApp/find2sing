@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/game_room_model.dart';
 import '../../models/match_intent_model.dart';
-import '../../models/word_set_model.dart';
+import '../../models/challenge_model.dart';
 import '../../services/challenge_online_service.dart';
 import '../../services/haptic_service.dart';
 import '../../widgets/challenge_ui_components.dart';
@@ -35,7 +35,7 @@ class _OnlineRelaxScreenState extends State<OnlineRelaxScreen> {
 
   StreamSubscription<GameRoomModel?>? _roomSubscription;
   GameRoomModel? _room;
-  List<ChallengeSongWithWords> _songs = [];
+  List<ChallengeSongModel> _songs = [];
   List<String> _artists = [];
   String? _selectedArtist;
   String? _selectedSongId;
@@ -171,7 +171,7 @@ class _OnlineRelaxScreenState extends State<OnlineRelaxScreen> {
   }
 
   Future<void> _submitSelection() async {
-    if (_selectedSongId == null || _selectedArtist == null || !_isMyTurn || _isFrozen || _myUid == null) return;
+    if (_selectedSongId == null || _selectedArtist == null || !_isMyTurn || _isFrozen || _myUid == null || _isSubmitting) return;
 
     setState(() => _isSubmitting = true);
     HapticService.submit();
@@ -296,7 +296,7 @@ class _OnlineRelaxScreenState extends State<OnlineRelaxScreen> {
 
     final artistSongs = _songs.where((s) => s.artist == _selectedArtist).toList();
 
-    SearchableBottomSheetPicker.show<ChallengeSongWithWords>(
+    SearchableBottomSheetPicker.show<ChallengeSongModel>(
       context: context,
       title: 'Şarkı Seç',
       items: artistSongs,
