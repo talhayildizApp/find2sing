@@ -8,6 +8,7 @@ import '../../services/access_control_service.dart';
 import '../../widgets/app_card_system.dart';
 import '../auth/login_screen.dart';
 import '../auth/profile_screen.dart';
+import '../premium/premium_screen.dart';
 import 'challenge_detail_screen.dart';
 
 class ChallengeScreen extends StatefulWidget {
@@ -416,12 +417,9 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () {
-                      // TODO: Premium satın alma ekranına yönlendir
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Premium satın alma yakında!'),
-                          backgroundColor: Color(0xFFCAB7FF),
-                        ),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PremiumScreen()),
                       );
                     },
                     borderRadius: BorderRadius.circular(16),
@@ -1394,12 +1392,9 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                   // Premium butonu
                   GestureDetector(
                     onTap: () {
-                      // TODO: Premium sayfasına git
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Premium satın alma yakında!'),
-                          backgroundColor: Color(0xFF667eea),
-                        ),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PremiumScreen()),
                       );
                     },
                     child: Container(
